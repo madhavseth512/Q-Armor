@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.env
+venv/
+env/
+.venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# Jupyter
+.ipynb_checkpoints/
+**/.ipynb_checkpoints
+
+# Data — raw and processed NSL-KDD files
+data/raw/
+data/processed/
+data/*.csv
+data/*.arff
+data/*.zip
+data/*.gz
+
+# Model artifacts
+*.pkl
+*.joblib
+*.npy
+*.npz
+
+# Agent state / memory snapshots
+agent_state/
+
+# Results and experiment outputs
+results/*.json
+results/*.png
+results/*.csv
+experiments/outputs/
+
+# IBM Quantum credentials — never commit
+.env
+*.key
+ibm_credentials.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
