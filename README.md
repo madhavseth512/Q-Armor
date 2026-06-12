@@ -1,6 +1,6 @@
 # Q-Armor: Agentic Quantum AI for Cybersecurity Intrusion Detection
 
-Q-Armor is a research prototype built at Deakin University under Dr. Shiva Pokhrel that frames network intrusion detection as an agentic decision loop. The system encodes NSL-KDD traffic features into quantum states, dynamically selects the most appropriate model (QSVM, VQC, Quantum Autoencoder, or classical SVM / Random Forest) based on real-time confidence, noise, and distribution-drift signals, and closes the loop by emitting structured attack-type classifications, prioritised alerts, and rule-based defence recommendations.
+Q-Armor is a research prototype built at Deakin University under Dr. Shiva Pokhrel that frames network intrusion detection as an agentic decision loop. The system encodes CICIoT2023 traffic features into quantum states via a custom entangling feature map, dynamically selects the most appropriate model (QSVM, VQC, Quantum Autoencoder, or classical SVM / Random Forest) based on real-time confidence, noise, and distribution-drift signals, and closes the loop by emitting structured attack-type classifications, prioritised alerts, and rule-based defence recommendations across all 15 attack classes.
 
 ---
 
@@ -8,11 +8,11 @@ Q-Armor is a research prototype built at Deakin University under Dr. Shiva Pokhr
 
 | Module | Responsibility |
 |---|---|
-| `perception/` | ZZFeatureMap encoding, FidelityQuantumKernel + TrainableFidelityQuantumKernel |
+| `perception/` | Custom `CyberSecurityFeatureMap` (8-qubit, 4 entanglement pairs) + FidelityQuantumKernel |
 | `reasoning/` | PegasosQSVC, VQC, QuantumAutoencoder, classical SVM/RF; rule-based model selector |
 | `memory/` | Disk persistence of kernel params, model weights, ADWIN window; kernel value cache |
-| `planning/` | Confidence monitor, ADWIN drift detector, IBM noise poller, mitigation decider |
-| `action/` | Multiclass attack classifier, alert prioritiser, defence recommender, JSON/CLI output |
+| `planning/` | Confidence monitor, ADWIN drift detector, noise monitor, mitigation decider |
+| `action/` | 15-class attack classifier, alert prioritiser, defence recommender, JSON/CLI output |
 | `agent/` | `AgentCore` orchestrator + `AgentConfig` (single source of truth for all thresholds) |
 
 ---
@@ -27,11 +27,31 @@ Q-Armor/
 ├── memory/         # State persistence & kernel cache
 ├── planning/       # Monitoring, drift detection & mitigation
 ├── action/         # Attack classification, alerts & defence
-├── data/           # Raw & processed NSL-KDD data (not committed)
-├── experiments/    # Training scripts & ablation studies
+├── data/           # CICIoT2023 data (not committed) + feature analysis
+├── experiments/    # Training scripts, EDA & ablation studies
 ├── notebooks/      # Exploratory Jupyter notebooks
 ├── results/        # Plots and evaluation outputs
 └── tests/          # Pytest unit and smoke tests
+```
+
+---
+
+## Dataset: CICIoT2023
+
+- **Source:** Canadian Institute for Cybersecurity — https://www.unb.ca/cic/datasets/iotdataset-2023.html
+- **Task:** full 15-class multiclass classification (no binary-first, no super-category grouping)
+- **Labels:** 34 subtype strings in a `label` column; the 15 **parent** classes are derived via `label.split('-')[0]`:
+  `DDoS, DoS, Mirai, BenignTraffic, Recon, MITM, DNS_Spoofing, Backdoor_Malware, VulnerabilityScan, BrowserHijacking, DictionaryBruteForce, XSS, SqlInjection, CommandInjection, Uploading_Attack`
+- **Imbalance:** severe (~6000:1, from DDoS at ~72.8% down to `Uploading_Attack` at ~140 rows). Handled with SMOTE on the training split only.
+- **Features:** 8 interpretable, EDA-grounded engineered features (one per qubit) — **no PCA**. See `data/FEATURE_ANALYSIS.md` once generated.
+
+Expected local layout (git-ignored, multi-GB — never committed):
+
+```
+data/CICIOT23/
+├── train/train.csv
+├── test/test.csv
+└── validation/validation.csv
 ```
 
 ---
@@ -56,17 +76,18 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure IBM Quantum credentials
+### 3. Configure IBM Quantum credentials (optional)
 
 ```bash
 cp .env.example .env
 # Edit .env and paste your IBM Quantum API token
 ```
 
-### 4. Download NSL-KDD dataset
+> All development and testing run on a local `AerSimulator` with `FakeBackend` noise models. Real IBM hardware is gated behind `USE_REAL_HARDWARE = False` in `agent/agent_config.py` and is only used after full simulator verification.
 
-Place `KDDTrain+.arff` and `KDDTest+.arff` inside `data/raw/`.  
-Download from: https://www.unb.ca/cic/datasets/nsl.html
+### 4. Provide the CICIoT2023 dataset
+
+Place the dataset under `data/CICIOT23/` using the layout shown above.
 
 ### 5. Run smoke tests
 
@@ -79,5 +100,6 @@ pytest tests/ -v
 ## Research Context
 
 - **Supervisor:** Dr. Shiva Pokhrel, Deakin University
-- **Dataset:** NSL-KDD (41 features, 5 classes: normal / DoS / Probe / R2L / U2R)
-- **Key techniques:** Quantum kernel methods, VQC, noise-aware model selection, ADWIN drift detection, ZNE error mitigation
+- **Dataset:** CICIoT2023 (15 parent attack classes; 8 engineered quantum features)
+- **Quantum stack:** custom `CyberSecurityFeatureMap`, FidelityQuantumKernel, PegasosQSVC, VQC (RealAmplitudes + COBYLA), QuantumAutoencoder — all on `AerSimulator`
+- **Key techniques:** quantum kernel methods, noise-aware model selection, ADWIN drift detection, ZNE error mitigation
