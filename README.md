@@ -27,12 +27,36 @@ Q-Armor/
 ├── memory/         # State persistence & kernel cache
 ├── planning/       # Monitoring, drift detection & mitigation
 ├── action/         # Attack classification, alerts & defence
-├── data/           # CICIoT2023 data (not committed) + feature analysis
-├── experiments/    # Training scripts, EDA & ablation studies
+├── data/           # loader, preprocess, CICIoT2023 data (not committed) + FEATURE_ANALYSIS.md
+├── docs/           # PROJECT_CHARTER.md — source of truth (vision, decisions, phases)
+├── experiments/    # EDA, validation gates & feature-design studies
 ├── notebooks/      # Exploratory Jupyter notebooks
 ├── results/        # Plots and evaluation outputs
 └── tests/          # Pytest unit and smoke tests
 ```
+
+---
+
+## Project Status
+
+Development is **classical-first, quantum-last** across 7 phases (see
+[`docs/PROJECT_CHARTER.md`](docs/PROJECT_CHARTER.md) for the full plan, decision
+log, and per-phase exit gates).
+
+| Phase | Description | Status |
+|---|---|---|
+| 0 | Foundation & config | ✅ done |
+| **1** | **Data pipeline (smart-8 features, two-sided sampling, validation gates)** | ✅ **done** |
+| 2 | Classical baselines (SVM-RBF, RandomForest) | ⬜ next |
+| 3 | Full agent skeleton (classical models) | ⬜ |
+| 4 | Perception — custom quantum feature map & kernel | ⬜ |
+| 5 | Quantum models (PegasosQSVC, VQC, QAE) | ⬜ |
+| 6 | Experiments & threshold calibration | ⬜ |
+
+**Phase 1 result:** the smart-8 feature set reaches **0.733 validation macro-F1**
+(RandomForest), beating the 45-raw-feature baseline (0.675) at just 8 qubits, with
+all 15 classes retained. Both validation gates (SHAP feature importance,
+diagnostic baseline) pass.
 
 ---
 
@@ -42,8 +66,22 @@ Q-Armor/
 - **Task:** full 15-class multiclass classification (no binary-first, no super-category grouping)
 - **Labels:** 34 subtype strings in a `label` column; the 15 **parent** classes are derived via `label.split('-')[0]`:
   `DDoS, DoS, Mirai, BenignTraffic, Recon, MITM, DNS_Spoofing, Backdoor_Malware, VulnerabilityScan, BrowserHijacking, DictionaryBruteForce, XSS, SqlInjection, CommandInjection, Uploading_Attack`
-- **Imbalance:** severe (~6000:1, from DDoS at ~72.8% down to `Uploading_Attack` at ~140 rows). Handled with SMOTE on the training split only.
-- **Features:** 8 interpretable, EDA-grounded engineered features (one per qubit) — **no PCA**. See `data/FEATURE_ANALYSIS.md` once generated.
+- **Scale:** 5,491,971 train rows; separate `validation.csv` and `test.csv` (1,176,851 rows each).
+- **Imbalance:** severe (**≈28,560:1**, from DDoS at 72.8% / 3,998,500 rows down to `Uploading_Attack` at 140 rows). Handled by a two-sided strategy on the **training split only**: undersample majorities to a cap, then SMOTE minorities to a dynamic floor `min(cap, 10×n_real)`.
+- **Features:** 8 interpretable, EDA-grounded engineered features ("smart-8", one per qubit) — **no PCA**. Each spans one signal family — volume, size, timing, behaviour, protocol:
+
+  | q | Feature | Source | Family |
+  |---|---|---|---|
+  | 0 | `traffic_rate` | `Rate` | volume |
+  | 1 | `syn_activity` | `syn_count` | volume |
+  | 2 | `teardown_activity` | `rst_count + fin_count` | volume |
+  | 3 | `header_overhead` | `Header_Length` | volume |
+  | 4 | `avg_packet_size` | `AVG` | size |
+  | 5 | `flow_timing` | `IAT` | timing |
+  | 6 | `handshake_ratio` | `ack_count / (syn_count + 1)` | behaviour |
+  | 7 | `protocol_profile` | weighted protocol score (`is_gre`-anchored) | protocol |
+
+  Full evidence trail (EDA, validation gates, design experiments) in [`data/FEATURE_ANALYSIS.md`](data/FEATURE_ANALYSIS.md).
 
 Expected local layout (git-ignored, multi-GB — never committed):
 
