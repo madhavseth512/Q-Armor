@@ -310,3 +310,37 @@ gates pass. Feature pipeline is locked. Decisions resolved — D4: stay at 8
 qubits; D3: keep all 15 classes (no collapse); D8: two-sided dynamic-floor
 sampling; D9: feature sufficiency achieved via design, not count. Remaining
 `[VALIDATE]` items (protocol weights, thresholds) deferred to later phases.
+
+## 11. Overfitting check — train vs validation (test.csv NOT touched)
+
+Locked smart-8 RandomForest, macro-F1 on real (pre-SMOTE) training rows vs the
+held-out validation set:
+
+| | Macro-F1 |
+|---|---|
+| Real training rows | 0.8541 |
+| Validation | 0.7333 |
+| Gap (train − val) | +0.121 |
+
+**The gap is localised, not broad.** Per-class:
+
+| Group | Train→Val gap | Verdict |
+|---|---|---|
+| Volumetric (DDoS/DoS/Mirai) | ~0.001 | perfect generalisation |
+| BenignTraffic | −0.014 | no overfit (val > train) |
+| Mid (Recon/MITM/DNS_Spoofing) | +0.05–0.11 | mild |
+| Rare/web (VulnScan/DictBrute/XSS/SqlInjection/Uploading) | +0.16–0.32 | the whole gap lives here |
+
+**Interpretation:** the majority classes (abundant real data, no SMOTE)
+generalise essentially perfectly; the gap is concentrated in the heavily-SMOTE'd
+rare classes (up to 90% synthetic), the textbook SMOTE-on-scarce-data effect —
+**bounded by the dynamic floor**. The reported 0.733 is the *validation* number
+and already prices this in; nothing reported is inflated.
+
+**Limitation:** this does not measure *selection bias* toward validation (we chose
+smart-8 on validation). That strictly needs the test set, which is intentionally
+sealed — the Phase-6 test evaluation is the final arbiter.
+
+**Carry-forward to Phase 2:** build classical baselines with mild regularisation
+(`min_samples_leaf`, modest `max_depth`) to tighten the rare-class gap, and always
+report validation, never train.
