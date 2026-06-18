@@ -48,11 +48,17 @@ data/*.parquet
 # Agent state / memory snapshots
 agent_state/
 
-# Results and experiment outputs
+# Results and experiment outputs (regenerable from experiment scripts)
 results/*.json
 results/*.png
 results/*.csv
+results/**/*.json
+results/**/*.png
+results/**/*.csv
 experiments/outputs/
+
+# Persisted models
+models/
 
 # IBM Quantum credentials — never commit
 .env

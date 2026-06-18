@@ -153,8 +153,8 @@ Classical-first, quantum-last. Each phase has an explicit exit gate.
 |---|---|---|---|---|
 | **0** | Foundation & Config | repo scaffold, `agent_config.py`, provenance, README, `.gitignore` | imports clean; values sourced | ✅ **done** |
 | **1** | Data Pipeline | full-dataset EDA → `loader.py` → `preprocess.py` (smart-8 features, scaling, two-sided sampling) → SHAP gate → diagnostic-baseline gate → `FEATURE_ANALYSIS.md` | **both gates PASS** (Gate B 0.733 > raw 0.675; Gate A all 8 matter) | ✅ **done** |
-| **2** | Classical Baselines | SVM-RBF + RandomForest on 8 features, 15-class; metrics | working classifiers + locked `predict()` contract | ⬜ |
-| **3** | Full Agent Skeleton (classical only) | memory, planning (mock noise), action (15-class), `agent_core.py`, pytest | end-to-end agent runs on classical models | ⬜ |
+| **2** | Classical Baselines | RandomForest + SVM-RBF + hierarchical cascade; `predict` contract; metrics | **done** — flat RF locked at **0.7376**; kernel + cascade tested & documented | ✅ **done** |
+| **3** | Full Agent Skeleton (classical only) | memory, planning (mock noise), action (15-class), `agent_core.py`, pytest | end-to-end agent runs on classical models | 🔄 **next** |
 | **4** | Perception (quantum kernel) | `CyberSecurityFeatureMap` (4 pairs), FidelityQuantumKernel, live cache | kernel matrix computes on simulator | ⬜ |
 | **5** | Quantum Models | PegasosQSVC → VQC → QAE; live ModelSelector | all 4 model types selectable | ⬜ |
 | **6** | Experiments & Calibration | threshold calibration, CVSS severity, ZNE, ablations, (optional) real HW | `[VALIDATE]` values replaced with evidence-based ones | ⬜ |
@@ -177,6 +177,8 @@ Classical-first, quantum-last. Each phase has an explicit exit gate.
 | D7 | `urg_count` (feature 6) | keep vs. swap | **swapped out** — Gate A showed it weak; smart-8 replaces it with `handshake_ratio` | ✅ superseded by D9 |
 | D8 | SMOTE strategy at scale | full-balance vs. undersample+target | **two-sided**: undersample majorities → 50k cap; SMOTE minorities to dynamic floor `min(cap, 10×n_real)` | ✅ decided |
 | D9 | Feature sufficiency (Gate B fail) | collapse classes / more qubits / re-engineer 8 | **re-engineer the 8** ("smart-8": swap volume-only `flow_dispersion`+`urgent_activity` → `flow_timing`(IAT)+`handshake_ratio`). 0.43→0.73 at 8q; both gates pass | ✅ decided |
+
+| D10 | Classical baseline model | flat RF vs kernel SVM vs hierarchical cascade | **flat RandomForest (0.7376)** — kernel SVM-10k (0.353) and cascade+reject (0.6425) both measured lower; full evidence in `docs/PHASE2_RESULTS.md` | ✅ decided |
 
 > **D9 resolution:** Gate B initially failed (8 volume-only features = 0.43 macro-F1;
 > application-layer classes collapsed). A per-class SHAP diagnostic + an A/B/C

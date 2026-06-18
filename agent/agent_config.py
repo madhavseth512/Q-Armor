@@ -79,6 +79,20 @@ N_PARENT_CLASSES: int = 15             # fixed — loader asserts len(unique par
 # classes into an "other" bucket. Decided later from SHAP / model results.
 COLLAPSE_RARE_CLASSES: bool = False    # [VALIDATE] — revisit after SHAP (Phase 1)
 
+# Hierarchical grouping (Option B) for the two-stage cascade classifier. The
+# Stage-1 router predicts one of these 4 coarse groups; a Stage-2 specialist then
+# classifies within the group. Grouping follows the attack taxonomy + the
+# observed separability tiers (volumetric = easy, web = hard / data-limited).
+ATTACK_GROUPS: dict[str, list[str]] = {
+    "Benign":     ["BenignTraffic"],
+    "Volumetric": ["DDoS", "DoS", "Mirai"],
+    "Network":    ["Recon", "MITM", "DNS_Spoofing", "VulnerabilityScan"],
+    "Web":        ["Backdoor_Malware", "BrowserHijacking", "DictionaryBruteForce",
+                   "XSS", "SqlInjection", "CommandInjection", "Uploading_Attack"],
+}
+GROUP_NAMES: list[str] = list(ATTACK_GROUPS)                 # router output classes
+GROUP_OF: dict[str, str] = {c: g for g, m in ATTACK_GROUPS.items() for c in m}
+
 # ---------------------------------------------------------------------------
 # Alert severity weights  (CHANGE 6)
 # ---------------------------------------------------------------------------

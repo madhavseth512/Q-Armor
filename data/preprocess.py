@@ -107,6 +107,7 @@ def dynamic_smote_strategy(
     Returns:
         Mapping ``{class_label: target_count}`` for ``imblearn.SMOTE``.
     """
+    y = pd.Series(np.asarray(y))
     strategy: dict = {}
     for cls, n in y.value_counts().items():
         target = min(cap, multiplier * int(n))
