@@ -7,6 +7,22 @@
 
 ---
 
+## 0. Evaluation methodology
+
+Not all numbers below are on the same evaluation set — read them accordingly:
+
+| Experiment | Eval set |
+|---|---|
+| Flat RF baseline, hierarchical cascade, Stage-1 router | **full validation (1,176,851 rows)** |
+| Kernel-scale runs (SVM-10k, RF-10k) | **200k stratified validation subsample** (for SVM prediction speed) |
+| SVM hyperparameter tuning | tuned on an **8k** validation slice, reported on a **disjoint 200k** slice |
+
+A 200k stratified subsample yields essentially the same macro-F1 as the full set
+for a given model, so cross-model comparisons remain fair; the distinction is
+recorded for rigor. `test.csv` is untouched throughout.
+
+---
+
 ## 1. Locked baseline — flat RandomForest
 
 | Setting | Value |
@@ -48,6 +64,12 @@ The tuned SVM degraded **even on DDoS** (recall 0.70; accuracy 0.74). Cause: the
 and that cannibalises even the dominant classes. RF tolerates this mismatch far
 better (0.471 vs 0.353). **This is the kernel baseline QSVC will be measured
 against in Phase 5** — no claim is made here about whether QSVC beats it.
+
+**Caveats:** the tuned SVM used **7,553 of 10,000** training points as support
+vectors (75% — a sign the RBF kernel could not fit this data cleanly). Several grid
+configs (low-`gamma` / high-`C`) hit the `max_iter=20000` cap and did not fully
+converge; they scored low and were not competitive, but were not exhaustively
+explored.
 
 ---
 
@@ -100,9 +122,16 @@ result is a genuine positive finding documented for the record.
   ~10k subset where macro-F1 collapses (0.47/0.35 vs flat 0.74) via the
   balanced/imbalanced mismatch.
 
-**Open future angles (untested, for later phases):** QuantumAutoencoder anomaly
-detection for the web tail (detect-not-classify, needs no web-class data); payload
-features via raw PCAP + DPI (a scope decision for the supervisor).
+**Open / untested options (discussed, not yet run):**
+- **SVM prior-correction** — re-score the kernel SVM by the real class priors to
+  counter the balanced-train / imbalanced-eval mismatch (§2). Proposed, not run.
+- **Router operating-point sweep** — the Stage-1 router used `class_weight='balanced'`
+  (high Web recall, precision 0.198); `class_weight=None` and a routing-confidence
+  threshold were not swept.
+- **QuantumAutoencoder anomaly detection** for the web tail (detect-not-classify;
+  needs no web-class data) — Phase 5.
+- **Payload features** via raw PCAP + DPI — would attack Wall A directly; a scope
+  decision for the supervisor (the CSV feature set has no payload content).
 
 ---
 
