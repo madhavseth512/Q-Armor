@@ -46,10 +46,10 @@ log, and per-phase exit gates).
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Foundation & config | ✅ done |
-| **1** | **Data pipeline (smart-8 features, two-sided sampling, validation gates)** | ✅ **done** |
-| 2 | Classical baselines (SVM-RBF, RandomForest) | ⬜ next |
-| 3 | Full agent skeleton (classical models) | ⬜ |
-| 4 | Perception — custom quantum feature map & kernel | ⬜ |
+| 1 | Data pipeline (smart-8 features, two-sided sampling, validation gates) | ✅ done |
+| 2 | Classical baselines (RandomForest 0.7376; SVM-RBF + cascade tested) | ✅ done |
+| **3** | **Full agent skeleton (perception→reasoning→memory→planning→action)** | ✅ **done** |
+| 4 | Perception — custom quantum feature map & kernel | ⬜ next |
 | 5 | Quantum models (PegasosQSVC, VQC, QAE) | ⬜ |
 | 6 | Experiments & threshold calibration | ⬜ |
 

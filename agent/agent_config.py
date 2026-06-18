@@ -123,6 +123,31 @@ SEVERITY_WEIGHTS: dict[str, float] = {
     "Uploading_Attack":     0.85,   # [VALIDATE] ~CVSS 8.5 (High) — malicious upload
 }
 
+# Additive boost to an alert's priority when its source IP is a repeat offender.
+REPEAT_IP_BOOST: float = 0.15          # [VALIDATE] — heuristic; tune in Phase 6
+ALERT_LOG_PATH: str = "results/alerts.jsonl"   # structured JSON-lines alert log
+
+# Rule-based defence recommendations, one per parent class (editable strings in
+# one place). action = response steps, urgency = analyst priority, description =
+# rationale. [VALIDATE] — playbook to be reviewed with the supervisor / SOC policy.
+DEFENCE_RULES: dict[str, dict[str, str]] = {
+    "DDoS":                 {"action": "Enable rate-limiting and upstream traffic scrubbing; alert NOC", "urgency": "high",     "description": "Volumetric flood degrading availability."},
+    "DoS":                  {"action": "Rate-limit and block the offending source; alert NOC",           "urgency": "high",     "description": "Single-source denial of service."},
+    "Mirai":                {"action": "Isolate the IoT device; force firmware re-image and audit",      "urgency": "critical", "description": "IoT botnet infection / takeover."},
+    "BenignTraffic":        {"action": "No action — normal traffic",                                     "urgency": "none",     "description": "Legitimate traffic."},
+    "Recon":                {"action": "Flag source; raise logging verbosity; monitor",                  "urgency": "low",      "description": "Reconnaissance / information gathering."},
+    "MITM":                 {"action": "Run ARP/DNS integrity checks; isolate the affected segment",     "urgency": "high",     "description": "Man-in-the-middle interception."},
+    "DNS_Spoofing":         {"action": "Validate DNS responses; flush resolver cache; enforce DNSSEC",   "urgency": "high",     "description": "DNS cache poisoning / redirection."},
+    "Backdoor_Malware":     {"action": "Isolate host; capture forensics; escalate to SOC",               "urgency": "critical", "description": "Persistent backdoor / full compromise."},
+    "VulnerabilityScan":    {"action": "Flag source; raise logging; review exposed services",            "urgency": "low",      "description": "Pre-attack vulnerability probing."},
+    "BrowserHijacking":     {"action": "Isolate host; reset sessions and credentials",                   "urgency": "high",     "description": "Client/browser session compromise."},
+    "DictionaryBruteForce": {"action": "Block source IP; enforce lockout and re-auth / MFA",             "urgency": "high",     "description": "Credential brute-force attempt."},
+    "XSS":                  {"action": "Apply WAF rule; sanitise and output-encode inputs",              "urgency": "medium",   "description": "Cross-site scripting injection."},
+    "SqlInjection":         {"action": "Apply WAF rule; parameterise queries; sanitise inputs",          "urgency": "high",     "description": "SQL injection / data exfiltration."},
+    "CommandInjection":     {"action": "Apply WAF rule; isolate host; sanitise inputs",                  "urgency": "critical", "description": "OS command injection / RCE."},
+    "Uploading_Attack":     {"action": "Quarantine uploaded artifacts; isolate host; escalate to SOC",   "urgency": "high",     "description": "Malicious file upload."},
+}
+
 # ---------------------------------------------------------------------------
 # Decision thresholds
 # ---------------------------------------------------------------------------
@@ -152,6 +177,13 @@ READOUT_ERROR_THRESHOLD: float = 0.03  # anchored (IBM device readout error)
 # error in Phase 6. The 5% value is a deliberate, conservative starting point,
 # not a measured limit.
 NOISE_THRESHOLD_FALLBACK: float = 0.05  # [VALIDATE] — calibrate vs backend (Phase 6)
+
+# Mock backend noise for Phase 3 (no quantum backend yet; USE_REAL_HARDWARE=False).
+# The PlanningModule.poll_noise() interface is real; these stub values are below
+# the thresholds above, so on the classical-only path mitigation stays "none".
+# Replaced by live backend.properties() polling in Phase 4/6.
+MOCK_GATE_ERROR: float = 0.008         # mock 2-qubit gate error (< NOISE_THRESHOLD_ZNE)
+MOCK_READOUT_ERROR: float = 0.02       # mock readout error (< READOUT_ERROR_THRESHOLD)
 
 # Sliding-window mean prediction confidence below which the agent switches model.
 # 0.65 = if average confidence drops under 65%, the current model is deemed
