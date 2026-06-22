@@ -155,7 +155,7 @@ Classical-first, quantum-last. Each phase has an explicit exit gate.
 | **1** | Data Pipeline | full-dataset EDA → `loader.py` → `preprocess.py` (smart-8 features, scaling, two-sided sampling) → SHAP gate → diagnostic-baseline gate → `FEATURE_ANALYSIS.md` | **both gates PASS** (Gate B 0.733 > raw 0.675; Gate A all 8 matter) | ✅ **done** |
 | **2** | Classical Baselines | RandomForest + SVM-RBF + hierarchical cascade; `predict` contract; metrics | **done** — flat RF locked at **0.7376**; kernel + cascade tested & documented | ✅ **done** |
 | **3** | Full Agent Skeleton (classical only) | action, planning (mock noise), memory, `ModelSelector`, `agent_core.py`, pytest | **done** — end-to-end agent runs on RF; 36 tests pass | ✅ **done** |
-| **4** | Perception (quantum kernel) | `CyberSecurityFeatureMap` (4 pairs), FidelityQuantumKernel, live cache | kernel matrix computes on simulator | ⬜ |
+| **4** | Perception (quantum kernel) | `CyberSecurityFeatureMap` (4 data-derived pairs), FidelityQuantumKernel, cache | **done** — valid PSD kernel verified; timing → n≈100–200 for Phase 5 | ✅ **done** |
 | **5** | Quantum Models | PegasosQSVC → VQC → QAE; live ModelSelector | all 4 model types selectable | ⬜ |
 | **6** | Experiments & Calibration | threshold calibration, CVSS severity, ZNE, ablations, (optional) real HW | `[VALIDATE]` values replaced with evidence-based ones | ⬜ |
 

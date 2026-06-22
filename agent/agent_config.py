@@ -29,6 +29,16 @@ import numpy as np
 N_QUBITS: int = 8                      # fixed — see rationale above
 N_QUANTUM_FEATURES: int = 8            # fixed — one engineered feature per qubit
 FEATURE_MAP_REPS: int = 2              # fixed — CyberSecurityFeatureMap repetitions (CHANGE 4)
+
+# CyberSecurityFeatureMap entanglement pairs (qubit indices), DERIVED from the
+# smart-8 correlation matrix (experiments/phase4_entanglement.py) — the 4 strongest
+# couplings, <=2 pairs per qubit, including the top feature flow_timing (q5):
+#   q2-q3 teardown<->header (+0.70) · q3-q7 header<->protocol (-0.50)
+#   q1-q7 syn<->protocol (-0.44)    · q2-q5 teardown<->flow_timing (-0.42)
+# handshake_ratio (q6) is ~independent of all features (|r|<=0.11) -> single-qubit.
+# Supersedes the brief's pairs (its pair C AVG<->Covariance is invalid; Covariance
+# was dropped, and its pair D Rate<->protocol is only -0.07 in smart-8).
+ENTANGLEMENT_PAIRS: list[tuple[int, int]] = [(2, 3), (3, 7), (1, 7), (2, 5)]
 VQC_REPS: int = 2                      # fixed — RealAmplitudes ansatz repetitions
 SHOTS: int = 1024                      # measurement shots per circuit evaluation
 

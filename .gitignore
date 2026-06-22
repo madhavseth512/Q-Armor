@@ -75,3 +75,6 @@ Thumbs.db
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Local-only supervisor briefing (not for the public repo)
+docs/SUPERVISOR_BRIEFING.md
