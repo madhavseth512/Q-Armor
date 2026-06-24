@@ -88,8 +88,12 @@
     multi-class (DDoS/DoS/…). Classical models (RF) lead here; quantum optional on a
     coarse mapped taxonomy.
 - **Outer loop maps to Reflexion roles:** Actor = inner loop; Evaluator = planning
-  monitors; Self-Reflection = NEW lesson generator; Memory = episodic store; Policy =
-  learned ModelSelector + mitigation.
+  monitors; Self-Reflection = NEW **structured/heuristic** lesson generator (rule-derived
+  policy updates, NOT an LLM); Memory = episodic store; Policy = learned ModelSelector +
+  mitigation.
+- **Episode = a batch/window of `EPISODE_SIZE` samples (default ~2,000)**; the agent
+  reflects after each episode and updates its policy; a cross-dataset switch is the drift
+  it adapts to.
 
 ---
 
@@ -104,13 +108,15 @@ For **each** dataset, replicate the CICIoT2023 rigor (`experiments/eda_verificat
 5. Feature correlations → re-derive entanglement pairs for the NetFlow feature map.
 6. Document each in a `data/<dataset>_ANALYSIS.md`.
 
-**Dataset priority (data-driven reasoning):**
-- **PRIMARY = the 2 NF datasets** (NF-ToN-IoT, NF-UNSW-NB15): common 8-feature schema
-  → ONE pipeline, cross-dataset drift, 8-qubit fit, minimal engineering.
-- **SECONDARY = the 2 raw datasets** (ToN-IoT, UNSW-NB15): richer features, but
-  incompatible schemas (no cross-dataset), per-dataset feature engineering. Use as
-  single-dataset multi-class benchmarks if time permits / supervisor requires.
-- **CICIoT2023 retained** as a third dataset (its smart-8 results stand).
+**Dataset plan (ALL 4 in scope, decided):**
+- **NF-2 (NF-ToN-IoT, NF-UNSW-NB15) = cross-dataset core:** common ~8-feature NetFlow
+  schema → ONE pipeline, cross-dataset drift, 8-qubit fit. The quantum + drift work
+  centres here.
+- **Raw-2 (ToN-IoT, UNSW-NB15) = per-dataset multi-class benchmarks:** richer features,
+  own feature engineering (incompatible schemas, so not used for cross-dataset directly).
+- **CICIoT2023 retained** (smart-8 results stand).
+- **Common coarse taxonomy** (DoS/Recon/Injection/Backdoor/Benign…): build a per-dataset
+  → taxonomy mapping so cross-dataset can go beyond binary into **coarse multi-class**.
 
 ---
 
@@ -166,22 +172,17 @@ For **each** dataset, replicate the CICIoT2023 rigor (`experiments/eda_verificat
 
 ---
 
-## 8. OPEN DECISIONS / CLARIFICATIONS NEEDED (do not assume — resolve before building)
+## 8. Decisions log (RESOLVED 2026-06 with supervisor)
 
-1. **Reflector mechanism (BLOCKING for Phase 7):** is the Self-Reflection component an
-   **LLM** (natural-language lessons, hybrid system) or a **structured/heuristic**
-   reflector (rule-derived policy updates)? Changes the implementation fundamentally.
-2. **"Episode/trial" definition:** IDS is a continuous stream; Reflexion learns over
-   *trials*. What is a trial — a time-window, a batch, a per-dataset run?
-3. **Dataset availability:** are the 4 datasets downloaded? Where? (Need files for E1.)
-4. **NF version:** v1 (8 features) or v2 (43)? (Verify from data in E1.)
-5. **Cross-dataset MULTI-CLASS:** keep per-dataset multi-class only, or map all datasets
-   to a **common coarse taxonomy** (DoS/Recon/Injection/Backdoor/Benign…) to enable
-   cross-dataset multi-class? (Affects whether cross-dataset goes beyond binary.)
-6. **Sequencing:** finish **quantum models on CICIoT2023 (Phase 5) first**, or **pivot to
-   NetFlow datasets (Phase 6) first**? (Recommended: Phase 5 first — kernel is ready,
-   small/fast, completes the quantum zoo; then port to NetFlow.)
-7. **GNN baselines:** the supervisor's table shows GNN methods (GAT, GraphSAGE, …) on
-   these datasets. Is matching/beating those a **goal**, or just context?
-8. **Scope/timeline:** all 4 datasets, or NF-2 as the core (raw optional)? (Recommended:
-   NF-2 core, raw optional — see §4.)
+| Decision | Resolution |
+|---|---|
+| **Reflector mechanism** | **Structured/heuristic** reflector (rule-derived policy updates) — NOT an LLM. |
+| **GNN baseline table** | **Context only** (which datasets to use). NOT a benchmark to match/beat; unrelated to our metrics. |
+| **Episode/trial** | An **episode = a batch/window of `EPISODE_SIZE` samples (default ~2,000)**. Reflect after each episode; aggregate accuracy/confidence/drift/noise → rule-derived lesson → policy update. A **cross-dataset switch = the drift** the agent adapts to. |
+| **Sequencing** | **Phase 5 (quantum models on CICIoT2023) FIRST**, then Phase 6 datasets. Kernel is ready; small/fast; completes the quantum zoo before porting to NetFlow. |
+| **Quantum benchmark task** | **BINARY detection** — QSVC *binary* vs SVM-RBF *binary* on the IDENTICAL small subset (fair, feasible). Coarse 4-group optional secondary. **NOT** full multi-class for the quantum comparison (data-starved at small-n). Multi-class attack typing is the **classical RF (Stage 2)** job. |
+| **Datasets** | **ALL 4** (ToN-IoT, NF-ToN-IoT, UNSW-NB15, NF-UNSW-NB15) + CICIoT2023 retained. NF-2 are the cross-dataset core (common schema); raw-2 are per-dataset multi-class benchmarks. |
+| **Cross-dataset multi-class** | **YES — map all datasets to a COMMON COARSE TAXONOMY** (e.g. DoS/Recon/Injection/Backdoor/Benign…) so cross-dataset goes beyond binary into coarse multi-class. (Requires a manual per-dataset → taxonomy mapping, built in E1/E5.) |
+
+**Remaining to verify from data (E1 — not assumptions):** are the 4 datasets downloaded
+and where; NF version v1 (~8 features) vs v2 (~43).
