@@ -277,3 +277,30 @@ SMOTE_MULTIPLIER: int = 10              # [VALIDATE] minority target = min(cap, 
 
 MEMORY_DIR: str = "agent_state"
 KERNEL_CACHE_MAX_SIZE: int = 1000       # max (x1, x2) pairs kept in the kernel cache
+
+# ---------------------------------------------------------------------------
+# Phase 5: quantum model training parameters
+# ---------------------------------------------------------------------------
+
+# Kernel-subset size for binary QSVC + SVM-RBF comparison (E6).
+# Phase-4 timing: n=90→1min, n=195→5min. 150 is a comfortable training budget.
+QSVC_SUBSET_SIZE: int = 150            # fixed — calibrated from Phase-4 timing
+
+# PegasosQSVC stochastic update steps. Default in qiskit_ml; adequate at n=150.
+PEGASOS_TAU: int = 100                 # grounded (qiskit_ml default)
+
+# VQC COBYLA max iterations. Typically converges in 50–80 for small binary sets.
+VQC_MAX_ITER: int = 500                # [VALIDATE] — 100 did not converge (24 params); 500 = ~20x params
+
+# QAE ansatz: RealAmplitudes repetitions (8 qubits, reps=1 → 16 params).
+QAE_REPS: int = 1                      # fixed — depth/parameter tradeoff at 8 qubits
+
+# QAE trash qubits: the first QAE_N_TRASH qubits are the reconstruction target.
+QAE_N_TRASH: int = 4                   # fixed — half of N_QUBITS = 8
+
+# QAE COBYLA max iterations for unsupervised reconstruction loss optimisation.
+QAE_MAX_ITER: int = 200                # [VALIDATE] — 30 did not converge; 200 = ~12x params (16)
+
+# QAE shots per circuit evaluation (fidelity estimation; higher = more accurate).
+# 256 shots introduced too much objective noise for COBYLA; 1024 gives ~3% std.
+QAE_SHOTS: int = 1024                  # [VALIDATE] — balance speed vs fidelity variance
