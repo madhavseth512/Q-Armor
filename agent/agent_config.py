@@ -279,6 +279,91 @@ MEMORY_DIR: str = "agent_state"
 KERNEL_CACHE_MAX_SIZE: int = 1000       # max (x1, x2) pairs kept in the kernel cache
 
 # ---------------------------------------------------------------------------
+# Phase 6: NF-ToN-IoT and NF-UNSW-NB15 dataset configuration
+# ---------------------------------------------------------------------------
+
+NF_TON_CSV:  str = "data/NF-ToN-IoT/NF-ToN-IoT.csv"
+NF_UNSW_CSV: str = "data/NF-UNSW-NB15/NF-UNSW-NB15.csv"
+
+# The 8 NF features selected for the 8-qubit quantum model. Derived from
+# RandomForest importance averaged across both datasets (experiments/phase6_eda.py).
+# PROTOCOL and L7_PROTO dropped — lowest average importance (0.021 and 0.031).
+# L4_DST_PORT is the highest-importance feature (0.25) contrary to the initial
+# assumption; port numbers carry strong attack-type signal in IoT traffic.
+NF_FEATURE_NAMES: list[str] = [
+    "L4_DST_PORT",
+    "OUT_BYTES",
+    "L4_SRC_PORT",
+    "FLOW_DURATION_MILLISECONDS",
+    "IN_BYTES",
+    "TCP_FLAGS",
+    "OUT_PKTS",
+    "IN_PKTS",
+]
+
+# Log-scale these columns before MinMax -> [0, pi]. All span multiple orders of
+# magnitude; log1p prevents outliers from compressing 99% of the data near 0.
+# L4_DST_PORT and L4_SRC_PORT added after EDA confirmed heavy-tail in NF-ToN-IoT
+# (L4_DST_PORT p50=80, p99=59170, ratio 739x).
+NF_LOG_COLS: list[str] = [
+    "L4_DST_PORT",
+    "L4_SRC_PORT",
+    "IN_BYTES",
+    "OUT_BYTES",
+    "IN_PKTS",
+    "OUT_PKTS",
+    "FLOW_DURATION_MILLISECONDS",
+]
+
+# Scaling mode for NF features: 'log' applies log1p to NF_LOG_COLS first,
+# then MinMax all features to [0, pi]. EDA Part 4 confirmed log > linear:
+# SVM-RBF cross-dataset AUROC 0.7426 (log) vs 0.6939 (linear).
+NF_SCALE_MODE: str = "log"   # fixed — locked by experiments/phase6_eda.py
+
+# NF binary label column (0=benign, 1=attack) and multi-class attack column.
+NF_LABEL_COL:  str = "Label"
+NF_ATTACK_COL: str = "Attack"
+
+# Five-class coarse taxonomy shared across NF-ToN-IoT and NF-UNSW-NB15.
+# Maps each dataset's native attack-type strings to a common label space so
+# cross-dataset multi-class classification is possible (E3 / Phase 6).
+# Derivation rationale per class:
+#   DoS        — volumetric/availability attacks (ddos, dos, DoS, Generic*)
+#   Injection  — exploit/credential/code injection (injection, xss, password,
+#                Exploits, Generic*, Shellcode)
+#   Recon      — probing/enumeration (scanning, Fuzzers, Reconnaissance, Analysis)
+#   Backdoor   — persistence/exfil/lateral (backdoor, mitm, ransomware,
+#                Backdoor, Worms)
+#   Benign     — normal traffic
+# *Generic (UNSW-NB15): generic block-cipher attacks — mapped to DoS (availability
+#  impact; not an injection or recon primitive).
+NF_COARSE_TAXONOMY: dict[str, str] = {
+    # NF-ToN-IoT native labels
+    "Benign":        "Benign",
+    "injection":     "Injection",
+    "ddos":          "DoS",
+    "password":      "Injection",
+    "xss":           "Injection",
+    "scanning":      "Recon",
+    "dos":           "DoS",
+    "backdoor":      "Backdoor",
+    "mitm":          "Backdoor",
+    "ransomware":    "Backdoor",
+    # NF-UNSW-NB15 native labels
+    "Exploits":      "Injection",
+    "Fuzzers":       "Recon",
+    "Reconnaissance":"Recon",
+    "Generic":       "DoS",
+    "DoS":           "DoS",
+    "Analysis":      "Recon",
+    "Backdoor":      "Backdoor",
+    "Shellcode":     "Injection",
+    "Worms":         "Backdoor",
+}
+
+NF_COARSE_CLASSES: list[str] = ["Benign", "DoS", "Injection", "Recon", "Backdoor"]
+
+# ---------------------------------------------------------------------------
 # Phase 5: quantum model training parameters
 # ---------------------------------------------------------------------------
 
