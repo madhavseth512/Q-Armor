@@ -364,6 +364,31 @@ NF_COARSE_TAXONOMY: dict[str, str] = {
 NF_COARSE_CLASSES: list[str] = ["Benign", "DoS", "Injection", "Recon", "Backdoor"]
 
 # ---------------------------------------------------------------------------
+# Phase 7: Reflexion outer-loop parameters
+# ---------------------------------------------------------------------------
+
+# Number of samples per episode (one reflect-and-adapt cycle).
+# Set to 100 (50 benign + 50 attack) for the prototype experiment; a production
+# deployment would use ~2000. Smaller size keeps QSVC predict cost manageable
+# (~140s/episode at n_sv=75, ~15ms/kernel-eval).
+EPISODE_SIZE: int = 100
+
+# AUROC threshold below which the Reflector fires a lesson.
+# 0.70 = meaningful detection; below this the model is unreliable.
+AUROC_FLOOR: float = 0.70
+
+# Macro-F1 threshold below which the Reflector writes a BINARY_ONLY lesson,
+# abandoning multi-class typing and falling back to binary detection.
+MACRO_F1_FLOOR: float = 0.30
+
+# Number of consecutive "good" episodes (AUROC >= AUROC_FLOOR) required before
+# the Reflector writes a REINFORCE lesson to lock the current policy.
+REINFORCE_CONSECUTIVE: int = 3
+
+# Path to the append-only episode log (JSONL, one record per episode).
+REFLEXION_LOG_PATH: str = "agent_state/episodes.jsonl"
+
+# ---------------------------------------------------------------------------
 # Phase 5: quantum model training parameters
 # ---------------------------------------------------------------------------
 
