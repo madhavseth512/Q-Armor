@@ -32,9 +32,13 @@
 with Reflexion-Based Adaptive Policy Learning}
 
 \author{
-  Madhav Seth and Shiva Raj Pokhrel\\
-  School of Information Technology, Deakin University, Australia\\
-  \texttt{\{seth, s.pokhrel\}@deakin.edu.au}
+\IEEEauthorblockN{Madhav Seth}
+\IEEEauthorblockA{Indian Institute of Technology, Kharagpur\\
+Kharagpur, India}
+\and
+\IEEEauthorblockN{Shiva Raj Pokhrel}
+\IEEEauthorblockA{School of Information Technology\\
+Deakin University, Australia}
 }
 
 \maketitle
@@ -594,6 +598,7 @@ NF-UNSW-NB15 training samples. SWITCH\_SUBSET gain reported
 relative to T2.}
 \label{tab:final}
 \renewcommand{\arraystretch}{1.1}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lcccc@{}}
 \toprule
 \textbf{Condition} & \textbf{S1 AUROC} & \textbf{S1 F1}
@@ -603,10 +608,10 @@ T1 Within (QSVC)          & \textbf{0.955} & 0.702 & \textbf{0.723} & 0.122 \\
 T2 Cross, no retrain      & 0.577          & 0.583 & 0.161          & 0.998 \\
 T3 Cross, SWITCH\_SUBSET  & \textbf{0.730} & 0.667 & 0.161          & 0.554 \\
 \midrule
-\multicolumn{2}{l}{SWITCH\_SUBSET gain (T3 vs T2)} &
-    $+0.153$ & $+0.000$ & $-0.444$ & \\
+\textit{SS gain (T3 vs T2)} & $+0.153$ & $+0.084$ & $+0.000$ & $-0.444$ \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \begin{table}[t]
@@ -616,6 +621,7 @@ NF-ToN-IoT, Stage~2 RF typer). Stage~2 trained on NF-ToN-IoT
 train split, $n{=}2{,}000$ per class.}
 \label{tab:perclass}
 \renewcommand{\arraystretch}{1.1}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lccccc@{}}
 \toprule
 \textbf{Condition} & \textbf{Benign} & \textbf{DoS}
@@ -625,7 +631,8 @@ train split, $n{=}2{,}000$ per class.}
 T1 (within, QSVC)   & 0.996 & 0.708 & 0.836 & 0.122 & 0.952 \\
 T3 (cross, retrained) & 0.565 & 0.015 & 0.216 & 0.000 & 0.008 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 T1 achieves AUROC~$= 0.955$ and typing macro-F1~$= 0.723$
@@ -659,7 +666,7 @@ accumulates lessons across episodes and builds a policy that
 reflects the history of interventions. In our 10-episode
 simulation, the Reflexion loop correctly fired SWITCH\_SUBSET
 (requiring both low AUROC \textit{and} confirmed drift) only
-once, while SWITCH\_MODEL fired five times for the lower-severity
+once, while SWITCH\_MODEL fired four times for the lower-severity
 case of degraded performance without confirmed drift. This
 mirrors the Reflexion principle~\cite{shinn2023}: the agent
 learns to distinguish ``wrong model'' from ``wrong distribution''
