@@ -62,6 +62,22 @@ class BaseClassifier(ABC):
 
     # -- shared contract (do not override) ---------------------------------
 
+    def predict_labels(self, X: np.ndarray) -> np.ndarray:
+        """Return hard integer predictions for a batch, using the model's native
+        decision boundary (not a fixed 0.5 probability threshold).
+
+        Default implementation uses argmax of predict_proba, which is correct for
+        calibrated classifiers (RF, SVM-RBF). Override in subclasses whose
+        probability outputs are not calibrated around 0.5 (e.g. PegasosQSVC).
+
+        Args:
+            X: Feature matrix of shape (n_samples, n_features).
+
+        Returns:
+            Integer label array of shape (n_samples,), values in classes_.
+        """
+        return self.predict_proba(np.asarray(X, dtype=float)).argmax(axis=1)
+
     def predict(self, x: np.ndarray) -> tuple[str, float, str]:
         """Predict a single sample under the uniform agent contract.
 

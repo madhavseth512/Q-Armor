@@ -104,6 +104,18 @@ class PegasosQSVCModel(BaseClassifier):
         raw = self._model.predict_proba(np.asarray(X, dtype=float))
         return raw[:, ::-1].copy()
 
+    def predict_labels(self, X: np.ndarray) -> np.ndarray:
+        """Hard binary predictions using the PegasosQSVC native decision boundary.
+
+        PegasosQSVC's predict_proba uses sigmoid calibration that is NOT centred
+        at 0.5 — argmax on probabilities would always pick benign (class 0).
+        Using the native SVM predict() instead applies the correct margin boundary.
+
+        Returns:
+            Integer array of shape (n_samples,) with values 0 (benign) or 1 (attack).
+        """
+        return np.asarray(self._model.predict(np.asarray(X, dtype=float)), dtype=int)
+
     @property
     def classes_(self) -> np.ndarray:
         """Binary class labels [0, 1] (benign, attack)."""

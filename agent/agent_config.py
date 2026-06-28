@@ -414,3 +414,27 @@ QAE_MAX_ITER: int = 200                # [VALIDATE] — 30 did not converge; 200
 # QAE shots per circuit evaluation (fidelity estimation; higher = more accurate).
 # 256 shots introduced too much objective noise for COBYLA; 1024 gives ~3% std.
 QAE_SHOTS: int = 1024                  # [VALIDATE] — balance speed vs fidelity variance
+
+# ---------------------------------------------------------------------------
+# Phase 8: Detect->Type cascade + retraining + IBM hardware validation
+# ---------------------------------------------------------------------------
+
+# Stage 2 (attack typing) RF: samples per class for balanced training.
+# 2000/class gives good macro-F1 without memory pressure on 5-class NF sets.
+CASCADE_STAGE2_N_PER_CLASS: int = 2000
+
+# SWITCH_SUBSET retraining: number of cross-domain samples used as the pool
+# from which k-means selects the new QSVC_SUBSET_SIZE kernel subset.
+# 300 gives k-means enough diversity while staying fast (~3s).
+SWITCH_SUBSET_N_CROSS: int = 300
+
+# IBM hardware validation: tiny QSVC trained on n_train samples, evaluated
+# on n_test samples. Low n keeps QPU job count manageable on the free tier:
+# kernel circuits = n_test * n_train (e.g. 10 * 20 = 200 circuits).
+IBM_HARDWARE_N_TRAIN: int = 20         # training kernel subset (10 benign + 10 attack)
+IBM_HARDWARE_N_TEST:  int = 10         # test subset (5 benign + 5 attack)
+IBM_SHOTS:            int = 1024       # shots per kernel circuit on real QPU
+IBM_INSTANCE:         str = "ibm-q/open/main"  # IBM Quantum hub/group/project
+
+# Path for serialised model checkpoints used across Phase 8 experiments.
+CHECKPOINT_DIR: str = "agent_state/checkpoints"
