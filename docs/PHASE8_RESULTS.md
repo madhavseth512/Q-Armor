@@ -38,15 +38,15 @@ not centred at 0.5 — `argmax(proba)` always predicted benign (F1=0.000). Fixed
 
 | Experiment | S1 AUROC | S1 F1 | S2 macro-F1 | FPR@95 |
 |------------|---------|-------|------------|--------|
-| C1 — Within NF-ToN-IoT (QSVC) | 0.9522 | 0.9376 | 0.6278 | 0.1240 |
-| C2 — Cross, no retrain | 0.6231 | 0.6580 | 0.1894 | 0.9960 |
-| C3 — Cross, SWITCH_SUBSET retrained | 0.8401 | 0.6667 | 0.1779 | 0.4720 |
+| C1 — Within NF-ToN-IoT (QSVC) | 0.9544 | 0.9416 | 0.7047 | 0.1240 |
+| C2 — Cross, no retrain | 0.6307 | 0.6774 | 0.1859 | 0.9960 |
+| C3 — Cross, SWITCH_SUBSET retrained | 0.9124 | 0.8546 | 0.1988 | 0.1680 |
 | C4 — Cross, classical RF fallback | 0.5990 | 0.4153 | 0.1914 | 0.9720 |
 
-**SWITCH_SUBSET gain (val):** AUROC +0.217, FPR@95 −0.524
+**SWITCH_SUBSET gain (val):** AUROC +0.282, FPR@95 −0.828
 
 Per-class F1 (C1 — within NF-ToN-IoT):
-- Benign=0.990  DoS=0.743  Injection=0.853  Recon=0.267  Backdoor=0.286
+- Benign=0.994  DoS=0.743  Injection=0.853  Recon=0.267  Backdoor=0.667
 
 ---
 
@@ -68,17 +68,19 @@ is valid and AUROC ceiling under ideal conditions.
 
 | Experiment | S1 AUROC | S1 F1 | S2 macro-F1 | FPR@95 |
 |------------|---------|-------|------------|--------|
-| T1 — Within NF-ToN-IoT (QSVC) | **0.9553** | 0.7022 | **0.7227** | 0.1220 |
-| T2 — Cross, no retrain | 0.5774 | 0.5830 | 0.1608 | 0.9980 |
-| T3 — Cross, SWITCH_SUBSET retrained | **0.7300** | 0.6667 | 0.1608 | 0.5540 |
+| T1 — Within NF-ToN-IoT (QSVC) | **0.9732** | 0.8953 | 0.4961 | 0.1200 |
+| T2 — Cross, no retrain | 0.6064 | 0.4400 | 0.1755 | 0.9740 |
+| T3 — Cross, SWITCH_SUBSET retrained | **0.9126** | 0.3981 | 0.1578 | 0.1980 |
 
-**SWITCH_SUBSET gain (test):** AUROC +0.1526, FPR@95 −0.4440
+**SWITCH_SUBSET gain (test):** AUROC +0.3062, FPR@95 −0.7760
 
 Per-class F1 (T1 — within NF-ToN-IoT, sealed test):
-- Benign=0.996  DoS=0.708  Injection=0.836  Recon=0.122  Backdoor=0.952
+- Benign=0.949  DoS=0.590  Injection=0.830  Recon=0.112  Backdoor=0.000
 
 Per-class F1 (T3 — cross-domain retrained):
-- Benign=0.565  DoS=0.015  Injection=0.216  Recon=0.000  Backdoor=0.008
+- Benign=0.694  DoS=0.000  Injection=0.046  Recon=0.000  Backdoor=0.049
+
+> **Note on Backdoor F1=0.000 in T1:** The corrected entanglement pairs (derived from NF-ToN-IoT Pearson correlations) assign Backdoor flows a low Stage 1 attack score, causing them to be classified as benign before reaching Stage 2. This is a known limitation of the current fixed decision threshold and is flagged as future work (threshold calibration).
 
 ---
 
@@ -86,14 +88,15 @@ Per-class F1 (T3 — cross-domain retrained):
 
 ### What works
 
-1. **Within-domain cascade is strong (T1):** AUROC=0.955, typing macro-F1=0.723.
-   Backdoor (0.952), Injection (0.836), DoS (0.708) all well classified. The
-   quantum-kernel Stage 1 + classical RF Stage 2 architecture delivers end-to-end
-   multi-class attack typing.
+1. **Within-domain Stage 1 detection is strong (T1):** AUROC=0.973, S1 F1=0.895.
+   Injection (0.830) and DoS (0.590) typed well by Stage 2. Backdoor drops to F1=0.000
+   because the corrected entanglement pairs cause Stage 1 to assign Backdoor flows a
+   low attack score (they never reach Stage 2). This is a threshold-sensitivity issue
+   flagged for CALIBRATE_THRESHOLD in future work.
 
 2. **SWITCH_SUBSET is the only cross-domain escape:** Without retraining (T2),
-   AUROC collapses to 0.577 (near-random). With SWITCH_SUBSET on just 150 target-domain
-   samples, AUROC recovers to 0.730 (+0.153). FPR@95 drops from 0.998 to 0.554.
+   AUROC collapses to 0.606 (near-random). With SWITCH_SUBSET on just 150 target-domain
+   samples, AUROC recovers to 0.913 (+0.306). FPR@95 drops from 0.974 to 0.198.
    This validates Goal G5 — the Reflexion agent learns to trigger retraining when
    cross-domain drift is detected.
 

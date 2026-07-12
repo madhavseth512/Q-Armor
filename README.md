@@ -10,12 +10,12 @@ The system combines an **8-qubit quantum fidelity kernel** (CyberSecurityFeature
 
 | Metric | Value |
 |--------|-------|
-| Within-domain S1 AUROC (sealed test) | **0.955** |
-| Within-domain S2 typing macro-F1 | **0.723** |
-| Cross-domain AUROC before retraining (T2) | 0.577 |
-| Cross-domain AUROC after SWITCH_SUBSET (T3) | **0.730** (+0.153) |
-| FPR@95 after SWITCH_SUBSET | 0.554 (↓ from 0.998) |
-| AerSimulator QPU validation AUROC | 0.880 |
+| Within-domain S1 AUROC (sealed test) | **0.973** |
+| Within-domain S2 typing macro-F1 | **0.496** |
+| Cross-domain AUROC before retraining (T2) | 0.606 |
+| Cross-domain AUROC after SWITCH_SUBSET (T3) | **0.913** (+0.306) |
+| FPR@95 after SWITCH_SUBSET | 0.198 (↓ from 0.974) |
+| AerSimulator QPU validation AUROC | 0.800 |
 | Reflexion episodes simulated | 10 (Block A: within, Block B: cross-domain) |
 | SWITCH_SUBSET triggered autonomously at | Episode 6 (drift confirmed by ADWIN) |
 
@@ -68,14 +68,14 @@ data/
 
 ## Quantum Kernel
 
-The **CyberSecurityFeatureMap** encodes 8 flow features into an 8-qubit parameterised circuit using angle encoding (R_y gates). Entanglement is applied via CNOT gates on four pairs derived from the NF-ToN-IoT feature correlation matrix:
+The **CyberSecurityFeatureMap** encodes 8 flow features into an 8-qubit parameterised circuit using angle encoding (R_y gates). Entanglement is applied via CNOT gates on four pairs derived from the NF-ToN-IoT Pearson correlation matrix (log1p + MinMax-scaled, n=200k subsample):
 
-| Pair | Correlation |
-|------|-------------|
-| (q2, q3) | +0.70 (teardown–header) |
-| (q3, q7) | −0.50 (header–protocol) |
-| (q1, q7) | −0.44 (SYN–protocol) |
-| (q2, q5) | −0.42 (teardown–flow_timing) |
+| Pair | r | Features |
+|------|---|----------|
+| (q1, q6) | +0.926 | OUT_BYTES ↔ OUT_PKTS |
+| (q4, q7) | +0.911 | IN_BYTES ↔ IN_PKTS |
+| (q6, q7) | +0.814 | OUT_PKTS ↔ IN_PKTS |
+| (q4, q6) | +0.774 | IN_BYTES ↔ OUT_PKTS |
 
 Circuit repeated r=2 times (FEATURE_MAP_REPS). Kernel evaluated via `FidelityQuantumKernel` + `SamplerV2`. PSD verified (min eigenvalue > 0).
 

@@ -31,14 +31,16 @@ N_QUANTUM_FEATURES: int = 8            # fixed — one engineered feature per qu
 FEATURE_MAP_REPS: int = 2              # fixed — CyberSecurityFeatureMap repetitions (CHANGE 4)
 
 # CyberSecurityFeatureMap entanglement pairs (qubit indices), DERIVED from the
-# smart-8 correlation matrix (experiments/phase4_entanglement.py) — the 4 strongest
-# couplings, <=2 pairs per qubit, including the top feature flow_timing (q5):
-#   q2-q3 teardown<->header (+0.70) · q3-q7 header<->protocol (-0.50)
-#   q1-q7 syn<->protocol (-0.44)    · q2-q5 teardown<->flow_timing (-0.42)
-# handshake_ratio (q6) is ~independent of all features (|r|<=0.11) -> single-qubit.
-# Supersedes the brief's pairs (its pair C AVG<->Covariance is invalid; Covariance
-# was dropped, and its pair D Rate<->protocol is only -0.07 in smart-8).
-ENTANGLEMENT_PAIRS: list[tuple[int, int]] = [(2, 3), (3, 7), (1, 7), (2, 5)]
+# NF-ToN-IoT feature correlation matrix (experiments/phase4b_nf_entanglement.py)
+# using the same log1p + MinMax-to-[0,pi] preprocessing as Phase 6-8 experiments.
+# Top-4 pairs by |Pearson r| (n=200k subsample, seed=42):
+#   q1-q6  OUT_BYTES <-> OUT_PKTS              r=+0.926  (rank 1/28)
+#   q4-q7  IN_BYTES <-> IN_PKTS               r=+0.911  (rank 2/28)
+#   q6-q7  OUT_PKTS <-> IN_PKTS               r=+0.814  (rank 3/28)
+#   q4-q6  IN_BYTES <-> OUT_PKTS              r=+0.774  (rank 4/28)
+# Previous pairs [(2,3),(3,7),(1,7),(2,5)] were derived from CICIoT2023 smart-8
+# features (experiments/phase4_entanglement.py) and do not apply to NF-ToN-IoT.
+ENTANGLEMENT_PAIRS: list[tuple[int, int]] = [(1, 6), (4, 7), (6, 7), (4, 6)]
 VQC_REPS: int = 2                      # fixed — RealAmplitudes ansatz repetitions
 SHOTS: int = 1024                      # measurement shots per circuit evaluation
 
