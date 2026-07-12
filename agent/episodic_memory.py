@@ -30,12 +30,14 @@ from agent.evaluator import EpisodeReport
 class Lesson:
     """A structured lesson written by the SelfReflector after one episode."""
 
-    lesson_id:   int
-    episode_id:  int
-    action:      str   # SWITCH_SUBSET | SWITCH_MODEL | BINARY_ONLY | REINFORCE
-    trigger:     str   # human-readable reason
-    params:      dict  # action-specific parameters (e.g. demoted model name)
-    timestamp:   str
+    lesson_id:      int
+    episode_id:     int
+    action:         str   # SWITCH_SUBSET | SWITCH_MODEL | BINARY_ONLY | REINFORCE | SWITCH_TYPE | CALIBRATE_THRESHOLD
+    trigger:        str   # human-readable reason
+    params:         dict  # action-specific parameters
+    timestamp:      str
+    verbal_lesson:  str = ""   # Phase 9: LLM-generated verbal reflection (empty for rule-based)
+    source:         str = "rule_based"  # "rule_based" | "llm"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -45,10 +47,17 @@ class Lesson:
 NO_LESSON = "NONE"
 
 # Valid lesson action strings.
-SWITCH_SUBSET = "SWITCH_SUBSET"
-SWITCH_MODEL  = "SWITCH_MODEL"
-BINARY_ONLY   = "BINARY_ONLY"
-REINFORCE     = "REINFORCE"
+SWITCH_SUBSET        = "SWITCH_SUBSET"
+SWITCH_MODEL         = "SWITCH_MODEL"
+BINARY_ONLY          = "BINARY_ONLY"
+REINFORCE            = "REINFORCE"
+SWITCH_TYPE          = "SWITCH_TYPE"          # Phase 9: retrain Stage 2 on target domain
+CALIBRATE_THRESHOLD  = "CALIBRATE_THRESHOLD"  # Phase 9: adjust binary decision threshold
+
+ALL_LESSON_ACTIONS: frozenset[str] = frozenset({
+    SWITCH_SUBSET, SWITCH_MODEL, BINARY_ONLY, REINFORCE,
+    SWITCH_TYPE, CALIBRATE_THRESHOLD,
+})
 
 
 class EpisodicMemory:
@@ -77,6 +86,9 @@ class EpisodicMemory:
             "subset_reselect":        False,
             "binary_only":            False,
             "confidence_threshold":   config.CONFIDENCE_THRESHOLD,
+            # Phase 9 additions
+            "type_reselect":          False,   # SWITCH_TYPE pending
+            "decision_threshold":     0.5,     # binary classification threshold
         }
 
     def get_policy(self) -> dict[str, Any]:
@@ -100,6 +112,18 @@ class EpisodicMemory:
         elif lesson.action == BINARY_ONLY:
             self._policy["binary_only"] = True
 
+        elif lesson.action == SWITCH_TYPE:
+            self._policy["type_reselect"] = True
+
+        elif lesson.action == CALIBRATE_THRESHOLD:
+            direction = lesson.params.get("direction", "lower")
+            magnitude = float(lesson.params.get("magnitude", 0.05))
+            current = self._policy["decision_threshold"]
+            if direction == "lower":
+                self._policy["decision_threshold"] = max(0.1, current - magnitude)
+            else:
+                self._policy["decision_threshold"] = min(0.9, current + magnitude)
+
         elif lesson.action == REINFORCE:
             # Promote the current top-of-hierarchy back to first position
             # (no-op if already first; restores order if SWITCH_MODEL swapped it).
@@ -111,6 +135,10 @@ class EpisodicMemory:
     def acknowledge_reselect(self) -> None:
         """Call after the inner loop has completed subset re-selection."""
         self._policy["subset_reselect"] = False
+
+    def acknowledge_type_reselect(self) -> None:
+        """Call after Stage 2 has been retrained (SWITCH_TYPE complete)."""
+        self._policy["type_reselect"] = False
 
     # ------------------------------------------------------------------
     # Recording

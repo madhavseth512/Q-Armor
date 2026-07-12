@@ -440,3 +440,35 @@ IBM_INSTANCE:         str = "ibm-q/open/main"  # IBM Quantum hub/group/project
 
 # Path for serialised model checkpoints used across Phase 8 experiments.
 CHECKPOINT_DIR: str = "agent_state/checkpoints"
+
+# ---------------------------------------------------------------------------
+# Phase 9: LLM-backed Reflexion agent
+# ---------------------------------------------------------------------------
+
+# Claude model for the three LLM components (Diagnoser, Planner, Reflector).
+# Haiku 4.5 is used for speed and cost-efficiency; all three calls happen
+# per episode so latency compounds.
+LLM_MODEL: str = "claude-haiku-4-5-20251001"
+
+# Temperature for LLM calls — kept low for reproducible structured decisions.
+LLM_TEMPERATURE: float = 0.2
+
+# Max tokens for Diagnoser and Planner structured JSON responses.
+LLM_MAX_TOKENS_DECISION: int = 512
+
+# Max tokens for Reflector verbal lesson (longer, narrative text).
+LLM_MAX_TOKENS_REFLECTION: int = 256
+
+# Number of recent episodes retrieved by SemanticMemory for LLM context.
+LLM_RAG_TOP_K: int = 3
+
+# Threshold for CALIBRATE_THRESHOLD lesson trigger:
+# per-class F1 below this with Stage 1 AUROC above the threshold floor
+# signals a threshold-sensitivity issue rather than a general model failure.
+PERCLASS_F1_FLOOR: float = 0.05
+
+# SWITCH_TYPE trigger: cross-domain macro-F1 below this + Stage 1 retrained.
+SWITCH_TYPE_MACRO_F1_FLOOR: float = 0.30
+
+# Path for semantic memory index (verbal lessons + episode summaries).
+SEMANTIC_MEMORY_PATH: str = "agent_state/semantic_memory.jsonl"

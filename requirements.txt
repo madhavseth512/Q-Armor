@@ -28,3 +28,6 @@ pytest-cov>=4.1.0
 # Utilities
 python-dotenv>=1.0.0
 tqdm>=4.66.0
+
+# Phase 9: LLM-backed Reflexion
+anthropic>=0.116.0
