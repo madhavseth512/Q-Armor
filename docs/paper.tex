@@ -1,7 +1,7 @@
 % ============================================================
 % IEEE Double-Column Conference Format
-% Q-Armor: Agentic Quantum-Enhanced Network Intrusion Detection
-% with Reflexion-Based Adaptive Policy Learning
+% Q-Armor: An Agentic Quantum Kernel Framework
+% for Adaptive Network Intrusion Detection
 % Authors: Madhav Seth and Shiva Raj Pokhrel
 % Deakin University, 2026
 % ============================================================
@@ -28,8 +28,8 @@
 % ============================================================
 \begin{document}
 
-\title{Q-Armor: Agentic Quantum-Enhanced Network Intrusion Detection
-with Reflexion-Based Adaptive Policy Learning}
+\title{Q-Armor: An Agentic Quantum Kernel Framework
+for Adaptive Network Intrusion Detection}
 
 \author{
 \IEEEauthorblockN{Madhav Seth}
@@ -111,10 +111,12 @@ policy mutations (lesson types) from measurable performance signals
 
 This paper makes the following contributions:
 \begin{enumerate}
-    \item We propose \textbf{Q-Armor}, the first agentic IDS
+    \item We propose \textbf{Q-Armor}, an agentic IDS
     combining a quantum fidelity kernel with Reflexion-style
     episodic self-reflection for adaptive model-selection policy
-    learning.
+    learning. To our knowledge, no prior system couples
+    quantum kernels with episodic policy memory for network
+    intrusion detection.
 
     \item We introduce the \textbf{CyberSecurityFeatureMap}, an
     8-qubit parameterised circuit encoding IoT NetFlow features
@@ -209,9 +211,14 @@ scaling), \textbf{Reasoning} (model selection and prediction),
 \textbf{Planning} (confidence monitoring, ADWIN drift detection,
 and mitigation decisions), \textbf{Action} (alert generation,
 severity scoring, and defence recommendation), and \textbf{Memory}
-(persistent model and state storage). The \textit{outer Reflexion
-loop} operates at episode granularity (one episode = 100 flows)
-and comprises:
+(persistent model and state storage). \textbf{Inference operates
+in batch-evaluation mode}: flows are accumulated over an episode
+and classified collectively; real-time per-packet classification
+is not the target use case, as the quantum kernel's $O(n_\text{test}
+\times n_\text{sv})$ circuit cost precludes sub-millisecond
+latency (see Section~\ref{sec:discussion}). The
+\textit{outer Reflexion loop} operates at episode granularity
+(one episode = 100 flows) and comprises:
 
 \begin{itemize}
     \item \textbf{Evaluator}: aggregates per-sample prediction
@@ -386,6 +393,30 @@ shifts significantly. The EpisodicMemory appends each
 \texttt{agent\_state/episodes.jsonl} and applies the
 corresponding policy mutation in memory, persisting state across
 restarts.
+
+\textbf{Policy mutation.} Let $\pi = \{\mathcal{H}, f_\text{sub},
+f_\text{thr}\}$ denote the policy state, where $\mathcal{H}$ is
+the ordered model hierarchy, $f_\text{sub} \in \{0,1\}$ is the
+subset-reselect flag, and $f_\text{thr} \in [0,1]$ is the Stage~1
+decision threshold (default $0.5$). Each lesson type induces a
+deterministic mutation:
+\begin{itemize}
+    \item \textbf{SWITCH\_MODEL}: $\mathcal{H} \leftarrow
+    \mathcal{H}[1:]$ (demote front tier).
+    \item \textbf{SWITCH\_SUBSET}: $f_\text{sub} \leftarrow
+    \mathtt{True}$ (triggers $k$-means reselection at episode start).
+    \item \textbf{REINFORCE}: increments a consecutive-success
+    counter; locks the current tier at $n_\text{consec} = 3$.
+    \item \textbf{BINARY\_ONLY}: removes multiclass model names
+    from $\mathcal{H}$, forcing binary-only output.
+\end{itemize}
+Two further mutations are designed for the LLM-backed Reflexion
+extension (Phase~9) and evaluated in future work:
+SWITCH\_TYPE ($f_\text{type} \leftarrow \mathtt{True}$, triggering
+Stage~2 RF retraining on target-domain samples) and
+CALIBRATE\_THRESHOLD ($f_\text{thr} \leftarrow f_\text{thr} \pm
+\delta_\text{thr}$, adjusting the Stage~1 decision threshold to
+recover per-class recall).
 
 Algorithm~\ref{alg:reflexion} summarises the outer loop.
 
@@ -637,11 +668,17 @@ T3 (cross, retrained) & 0.694 & 0.000 & 0.046 & 0.000 & 0.049 \\
 \end{table}
 
 T1 achieves Stage~1 AUROC~$= 0.973$ and F1~$= 0.895$
-on the sealed within-domain test. Per-class Stage~2 typing
-is strong for Injection ($0.830$) and DoS ($0.590$), but
-Backdoor drops to F1~$= 0.000$ because Stage~1 assigns
-Backdoor flows a low attack score under the corrected
-entanglement pairs, preventing them from reaching Stage~2.
+on the sealed within-domain test. For reference, a classical
+SVM-RBF trained on the same 8-feature set in the same evaluation
+framework achieved AUROC~$= 0.742$ in the cross-dataset Phase~6
+baseline — the quantum kernel outperforms it under an equivalent
+150-sample training budget.
+Per-class Stage~2 typing is strong for Injection ($0.830$) and
+DoS ($0.590$), but Backdoor drops to F1~$= 0.000$ because Stage~1
+assigns Backdoor flows a low attack score under the corrected
+entanglement pairs, preventing them from reaching Stage~2; this is
+a threshold-sensitivity issue (AUROC remains $0.973$) that
+CALIBRATE\_THRESHOLD is designed to address.
 Recon is weak (F1~$= 0.112$) due to data scarcity in the
 NF-ToN-IoT coarse taxonomy.
 
@@ -680,19 +717,25 @@ from experience, not just from the current sample.
 
 The quantum fidelity kernel contributes through the
 \textit{feature-space expressivity} of the 8-qubit entangled
-circuit, not through raw prediction accuracy. On the sealed
-within-domain test, QSVC achieves AUROC~$= 0.973$ — substantially
-above classical SVM-RBF (AUROC~$= 0.742$, Phase~6 baseline,
-cross-dataset), while being trained on 150 samples vs.\ the
-full 1.1M training flows for the RF baseline. The quantum
-contribution is most pronounced in \textit{cross-domain adaptation
-quality}: SWITCH\_SUBSET on 150 target-domain samples recovers
+circuit, not through raw prediction accuracy. Within-domain,
+QSVC achieves AUROC~$= 0.973$ while training on only 150
+samples; for intra-framework comparison, a classical SVM-RBF
+baseline trained under the same 8-feature schema reached
+AUROC~$= 0.742$ in Phase~6. This comparison is not fully
+controlled (different dataset splits and training sets), and a
+rigorous ablation of the quantum kernel against an RBF kernel
+at an identical 150-sample budget on the same sealed splits is
+deferred to future work.
+
+Cross-domain, SWITCH\_SUBSET on 150 target-domain samples recovers
 AUROC by~$+0.306$ (from $0.606$ to $0.913$), whereas the
 classical RF fallback (C4) achieves AUROC~$= 0.599$ without
 retraining. The quantum kernel's entanglement structure —
-encoding the strongest byte/packet correlations in the
-NF-ToN-IoT distribution — enables effective relearning of the
-cross-domain decision boundary from a minimal labelled pool.
+encoding the four strongest byte/packet correlations in the
+NF-ToN-IoT distribution — may enable compact re-fitting of the
+decision boundary from a minimal labelled pool, though isolating
+this effect from the benefit of any target-domain retraining
+requires the ablation noted above.
 
 \subsection{Limitations}
 
@@ -717,7 +760,7 @@ will further reduce performance.
 \label{sec:conclusion}
 % ============================================================
 
-We presented Q-Armor, an agentic quantum-enhanced IDS combining
+We presented Q-Armor, an agentic quantum kernel framework combining
 an 8-qubit fidelity kernel with a Reflexion-inspired outer loop
 for adaptive policy learning under concept drift. On sealed
 test splits of NF-ToN-IoT and NF-UNSW-NB15, the Detect$\to$Type
@@ -728,13 +771,22 @@ FPR@95 from $0.974$ to $0.198$, while the Reflexion loop
 autonomously fires this mechanism after confirmed drift without
 human intervention.
 
-Future work will (i) extend SWITCH\_SUBSET to jointly retrain
-Stage~2 on target-domain labelled flows, targeting cross-domain
-macro-F1~$\geq 0.50$; (ii) characterise real IBM QPU noise
-degradation; (iii) build a live packet-to-flow extraction
-pipeline connecting raw network traffic to the cascade; and
-(iv) explore VQC and QAE as alternative Stage~1 models to
-complete the quantum model zoo evaluation.
+Future work will (i) evaluate \textbf{SWITCH\_TYPE} — a
+policy mutation that triggers Stage~2 RF retraining on
+target-domain labelled flows when macro-F1 falls critically
+low despite healthy Stage~1 AUROC, targeting cross-domain
+macro-F1~$\geq 0.50$; (ii) evaluate \textbf{CALIBRATE\_THRESHOLD}
+— a per-class threshold-adjustment mechanism that recovers
+suppressed per-class recall (e.g., Backdoor~F1~$= 0.000$)
+caused by the Stage~1 decision boundary assigning low attack
+scores to certain attack subtypes, distinct from kernel failure;
+(iii) characterise real IBM QPU noise degradation on the
+validated circuit; (iv) build a live packet-to-flow extraction
+pipeline connecting raw network traffic to the cascade;
+(v) explore VQC and QAE as alternative Stage~1 models; and
+(vi) perform a controlled ablation of the quantum fidelity
+kernel against a Gaussian RBF kernel at an identical 150-sample
+training budget to quantify the quantum representation advantage.
 
 % ============================================================
 \section*{Acknowledgment}
