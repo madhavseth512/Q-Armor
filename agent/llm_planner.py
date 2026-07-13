@@ -1,7 +1,7 @@
 """LLM Planner — Phase 9 Reflexion component.
 
 Takes the LLM Diagnoser's structured diagnosis and selects one action from
-the controlled tool library. Uses Claude with a strict JSON output format.
+the controlled tool library. Uses Gemini with a strict JSON output format.
 
 Output schema (JSON):
 {
@@ -17,7 +17,8 @@ from __future__ import annotations
 import json
 import os
 
-import anthropic
+from google import genai
+from google.genai import types
 
 from agent import agent_config as config
 from agent.episodic_memory import (
@@ -28,15 +29,15 @@ from agent.evaluator import EpisodeReport
 from agent.tool_library import tool_schema_str
 from reasoning.selector import TIER_TO_NAME
 
-_CLIENT: anthropic.Anthropic | None = None
+_CLIENT: genai.Client | None = None
 
 _NAME_TO_TIER: dict[str, str] = {v: k for k, v in TIER_TO_NAME.items()}
 
 
-def _client() -> anthropic.Anthropic:
+def _client() -> genai.Client:
     global _CLIENT
     if _CLIENT is None:
-        _CLIENT = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+        _CLIENT = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY", ""))
     return _CLIENT
 
 
@@ -106,16 +107,16 @@ def plan(
     """
     prompt = _build_prompt(report, diagnosis, policy, context_str)
     try:
-        msg = _client().messages.create(
-            model       = config.LLM_MODEL,
-            max_tokens  = config.LLM_MAX_TOKENS_DECISION,
-            temperature = config.LLM_TEMPERATURE,
-            system      = _SYSTEM,
-            messages    = [{"role": "user", "content": prompt}],
+        response = _client().models.generate_content(
+            model    = config.LLM_MODEL,
+            contents = prompt,
+            config   = types.GenerateContentConfig(
+                system_instruction = _SYSTEM,
+                temperature        = config.LLM_TEMPERATURE,
+                max_output_tokens  = config.LLM_MAX_TOKENS_DECISION,
+            ),
         )
-        raw = msg.content[0].text.strip()
-        result = json.loads(raw)
-        # Normalise params to dict if LLM returned None
+        result = json.loads(response.text.strip())
         if result.get("params") is None:
             result["params"] = {}
         return result

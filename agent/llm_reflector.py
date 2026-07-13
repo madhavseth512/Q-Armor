@@ -12,19 +12,20 @@ from __future__ import annotations
 
 import os
 
-import anthropic
+from google import genai
+from google.genai import types
 
 from agent import agent_config as config
 from agent.evaluator import EpisodeReport
 
 
-_CLIENT: anthropic.Anthropic | None = None
+_CLIENT: genai.Client | None = None
 
 
-def _client() -> anthropic.Anthropic:
+def _client() -> genai.Client:
     global _CLIENT
     if _CLIENT is None:
-        _CLIENT = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+        _CLIENT = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY", ""))
     return _CLIENT
 
 
@@ -59,20 +60,22 @@ def write_lesson(
     rationale: str,
     diagnosis: dict,
 ) -> str:
-    """Call Claude to write a verbal lesson for this episode.
+    """Call Gemini to write a verbal lesson for this episode.
 
     Returns the verbal lesson string. Returns a short fallback string on failure.
     """
     prompt = _build_prompt(report, action, rationale, diagnosis)
     try:
-        msg = _client().messages.create(
-            model       = config.LLM_MODEL,
-            max_tokens  = config.LLM_MAX_TOKENS_REFLECTION,
-            temperature = config.LLM_TEMPERATURE,
-            system      = _SYSTEM,
-            messages    = [{"role": "user", "content": prompt}],
+        response = _client().models.generate_content(
+            model    = config.LLM_MODEL,
+            contents = prompt,
+            config   = types.GenerateContentConfig(
+                system_instruction = _SYSTEM,
+                temperature        = config.LLM_TEMPERATURE,
+                max_output_tokens  = config.LLM_MAX_TOKENS_REFLECTION,
+            ),
         )
-        return msg.content[0].text.strip()
+        return response.text.strip()
     except Exception:
         return (
             f"Episode {report.episode_id}: AUROC={report.auroc:.4f}, "

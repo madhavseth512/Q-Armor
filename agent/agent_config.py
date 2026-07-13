@@ -445,10 +445,10 @@ CHECKPOINT_DIR: str = "agent_state/checkpoints"
 # Phase 9: LLM-backed Reflexion agent
 # ---------------------------------------------------------------------------
 
-# Claude model for the three LLM components (Diagnoser, Planner, Reflector).
-# Haiku 4.5 is used for speed and cost-efficiency; all three calls happen
-# per episode so latency compounds.
-LLM_MODEL: str = "claude-haiku-4-5-20251001"
+# Gemini model for the three LLM components (Diagnoser, Planner, Reflector).
+# gemini-2.0-flash is used for speed and cost-efficiency (free tier via
+# Google AI Studio); all three calls happen per episode so latency compounds.
+LLM_MODEL: str = "gemini-2.0-flash"
 
 # Temperature for LLM calls — kept low for reproducible structured decisions.
 LLM_TEMPERATURE: float = 0.2

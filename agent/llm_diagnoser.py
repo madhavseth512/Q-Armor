@@ -1,6 +1,6 @@
 """LLM Diagnoser — Phase 9 Reflexion component.
 
-Takes an EpisodeReport + retrieved episodic context and calls Claude to
+Takes an EpisodeReport + retrieved episodic context and calls Gemini to
 produce a structured diagnosis of what went wrong and why. The diagnosis
 is passed to the LLM Planner to select an action.
 
@@ -18,20 +18,20 @@ from __future__ import annotations
 import json
 import os
 
-import anthropic
+from google import genai
+from google.genai import types
 
 from agent import agent_config as config
 from agent.evaluator import EpisodeReport
 
 
-_CLIENT: anthropic.Anthropic | None = None
+_CLIENT: genai.Client | None = None
 
 
-def _client() -> anthropic.Anthropic:
+def _client() -> genai.Client:
     global _CLIENT
     if _CLIENT is None:
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        _CLIENT = anthropic.Anthropic(api_key=api_key)
+        _CLIENT = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY", ""))
     return _CLIENT
 
 
@@ -90,15 +90,16 @@ def diagnose(
     """
     prompt = _build_prompt(report, context_str, policy)
     try:
-        msg = _client().messages.create(
-            model       = config.LLM_MODEL,
-            max_tokens  = config.LLM_MAX_TOKENS_DECISION,
-            temperature = config.LLM_TEMPERATURE,
-            system      = _SYSTEM,
-            messages    = [{"role": "user", "content": prompt}],
+        response = _client().models.generate_content(
+            model    = config.LLM_MODEL,
+            contents = prompt,
+            config   = types.GenerateContentConfig(
+                system_instruction = _SYSTEM,
+                temperature        = config.LLM_TEMPERATURE,
+                max_output_tokens  = config.LLM_MAX_TOKENS_DECISION,
+            ),
         )
-        raw = msg.content[0].text.strip()
-        return json.loads(raw)
+        return json.loads(response.text.strip())
     except Exception as exc:
         return _heuristic_diagnosis(report, str(exc))
 

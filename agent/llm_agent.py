@@ -8,7 +8,7 @@ Orchestrates the four-stage LLM pipeline:
   5. LLMReflector.write_lesson() — verbal lesson for episodic memory
 
 Falls back to the rule-based SelfReflector when:
-  - ANTHROPIC_API_KEY is not set
+  - GOOGLE_API_KEY is not set
   - An LLM call fails and the heuristic fallback produces an invalid action
   - The Verifier rejects the LLM decision
 
@@ -47,7 +47,7 @@ class LLMReflexionAgent:
         self._sem_mem  = semantic_memory or SemanticMemory()
         self._fallback = SelfReflector()
         self._verbose  = verbose
-        self._has_key  = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
+        self._has_key  = bool(os.environ.get("GOOGLE_API_KEY", "").strip())
 
     # ------------------------------------------------------------------
     # Public API (mirrors SelfReflector.reflect)
@@ -66,7 +66,7 @@ class LLMReflexionAgent:
         """
         if not self._has_key:
             if self._verbose:
-                print("  [LLMAgent] No ANTHROPIC_API_KEY — using rule-based fallback.")
+                print("  [LLMAgent] No GOOGLE_API_KEY — using rule-based fallback.")
             return self._fallback.reflect(report, memory, policy)
 
         ts = datetime.now(timezone.utc).isoformat()

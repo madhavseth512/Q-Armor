@@ -29,5 +29,5 @@ pytest-cov>=4.1.0
 python-dotenv>=1.0.0
 tqdm>=4.66.0
 
-# Phase 9: LLM-backed Reflexion
-anthropic>=0.116.0
+# Phase 9: LLM-backed Reflexion (Gemini via Google AI Studio free tier)
+google-genai>=1.0.0
