@@ -1,7 +1,7 @@
 """LLM Diagnoser — Phase 9 Reflexion component.
 
-Takes an EpisodeReport + retrieved episodic context and calls Gemini to
-produce a structured diagnosis of what went wrong and why. The diagnosis
+Takes an EpisodeReport + retrieved episodic context and calls Groq (Llama)
+to produce a structured diagnosis of what went wrong and why. The diagnosis
 is passed to the LLM Planner to select an action.
 
 Output schema (JSON):
@@ -18,20 +18,19 @@ from __future__ import annotations
 import json
 import os
 
-from google import genai
-from google.genai import types
+from groq import Groq
 
 from agent import agent_config as config
 from agent.evaluator import EpisodeReport
 
 
-_CLIENT: genai.Client | None = None
+_CLIENT: Groq | None = None
 
 
-def _client() -> genai.Client:
+def _client() -> Groq:
     global _CLIENT
     if _CLIENT is None:
-        _CLIENT = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY", ""))
+        _CLIENT = Groq(api_key=os.environ.get("GROQ_API_KEY", ""))
     return _CLIENT
 
 
@@ -90,16 +89,16 @@ def diagnose(
     """
     prompt = _build_prompt(report, context_str, policy)
     try:
-        response = _client().models.generate_content(
-            model    = config.LLM_MODEL,
-            contents = prompt,
-            config   = types.GenerateContentConfig(
-                system_instruction = _SYSTEM,
-                temperature        = config.LLM_TEMPERATURE,
-                max_output_tokens  = config.LLM_MAX_TOKENS_DECISION,
-            ),
+        response = _client().chat.completions.create(
+            model      = config.LLM_MODEL,
+            temperature= config.LLM_TEMPERATURE,
+            max_tokens = config.LLM_MAX_TOKENS_DECISION,
+            messages   = [
+                {"role": "system", "content": _SYSTEM},
+                {"role": "user",   "content": prompt},
+            ],
         )
-        return json.loads(response.text.strip())
+        return json.loads(response.choices[0].message.content.strip())
     except Exception as exc:
         return _heuristic_diagnosis(report, str(exc))
 

@@ -47,7 +47,7 @@ class LLMReflexionAgent:
         self._sem_mem  = semantic_memory or SemanticMemory()
         self._fallback = SelfReflector()
         self._verbose  = verbose
-        self._has_key  = bool(os.environ.get("GOOGLE_API_KEY", "").strip())
+        self._has_key  = bool(os.environ.get("GROQ_API_KEY", "").strip())
 
     # ------------------------------------------------------------------
     # Public API (mirrors SelfReflector.reflect)
@@ -66,7 +66,7 @@ class LLMReflexionAgent:
         """
         if not self._has_key:
             if self._verbose:
-                print("  [LLMAgent] No GOOGLE_API_KEY — using rule-based fallback.")
+                print("  [LLMAgent] No GROQ_API_KEY — using rule-based fallback.")
             return self._fallback.reflect(report, memory, policy)
 
         ts = datetime.now(timezone.utc).isoformat()

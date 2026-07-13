@@ -29,5 +29,5 @@ pytest-cov>=4.1.0
 python-dotenv>=1.0.0
 tqdm>=4.66.0
 
-# Phase 9: LLM-backed Reflexion (Gemini via Google AI Studio free tier)
-google-genai>=1.0.0
+# Phase 9: LLM-backed Reflexion (Llama 3.3 via Groq free tier)
+groq>=0.9.0

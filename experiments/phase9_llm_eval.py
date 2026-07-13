@@ -16,8 +16,8 @@ Run:
     # Without LLM (rule-based and ADWIN-only only):
     ./venv/Scripts/python.exe -m experiments.phase9_llm_eval
 
-    # With LLM agent (requires ANTHROPIC_API_KEY env var):
-    set ANTHROPIC_API_KEY=sk-ant-...
+    # With LLM agent (requires GROQ_API_KEY env var):
+    set GROQ_API_KEY=gsk_...
     ./venv/Scripts/python.exe -m experiments.phase9_llm_eval --llm
 """
 
@@ -28,6 +28,9 @@ import json
 import os
 import time
 from copy import deepcopy
+
+from dotenv import load_dotenv
+load_dotenv(override=True)
 
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -270,7 +273,7 @@ def _print_comparison(all_results: dict[str, list[dict]]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--llm", action="store_true",
-                        help="Include LLM agent (requires ANTHROPIC_API_KEY)")
+                        help="Include LLM agent (requires GROQ_API_KEY)")
     parser.add_argument("--no-rule", action="store_true",
                         help="Skip rule-based agent (faster if only testing LLM)")
     args = parser.parse_args()
@@ -329,8 +332,8 @@ def main() -> None:
 
     # A) LLM agent
     if args.llm:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            print("\nWARNING: --llm specified but ANTHROPIC_API_KEY not set.")
+        if not os.environ.get("GROQ_API_KEY"):
+            print("\nWARNING: --llm specified but GROQ_API_KEY not set.")
             print("LLM agent will use heuristic fallback for all calls.")
         llm_agent = LLMReflexionAgent(verbose=True)
         all_results["LLM Agent"] = _run_simulation(

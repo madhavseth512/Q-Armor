@@ -12,20 +12,19 @@ from __future__ import annotations
 
 import os
 
-from google import genai
-from google.genai import types
+from groq import Groq
 
 from agent import agent_config as config
 from agent.evaluator import EpisodeReport
 
 
-_CLIENT: genai.Client | None = None
+_CLIENT: Groq | None = None
 
 
-def _client() -> genai.Client:
+def _client() -> Groq:
     global _CLIENT
     if _CLIENT is None:
-        _CLIENT = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY", ""))
+        _CLIENT = Groq(api_key=os.environ.get("GROQ_API_KEY", ""))
     return _CLIENT
 
 
@@ -66,16 +65,16 @@ def write_lesson(
     """
     prompt = _build_prompt(report, action, rationale, diagnosis)
     try:
-        response = _client().models.generate_content(
-            model    = config.LLM_MODEL,
-            contents = prompt,
-            config   = types.GenerateContentConfig(
-                system_instruction = _SYSTEM,
-                temperature        = config.LLM_TEMPERATURE,
-                max_output_tokens  = config.LLM_MAX_TOKENS_REFLECTION,
-            ),
+        response = _client().chat.completions.create(
+            model      = config.LLM_MODEL,
+            temperature= config.LLM_TEMPERATURE,
+            max_tokens = config.LLM_MAX_TOKENS_REFLECTION,
+            messages   = [
+                {"role": "system", "content": _SYSTEM},
+                {"role": "user",   "content": prompt},
+            ],
         )
-        return response.text.strip()
+        return response.choices[0].message.content.strip()
     except Exception:
         return (
             f"Episode {report.episode_id}: AUROC={report.auroc:.4f}, "

@@ -445,10 +445,10 @@ CHECKPOINT_DIR: str = "agent_state/checkpoints"
 # Phase 9: LLM-backed Reflexion agent
 # ---------------------------------------------------------------------------
 
-# Gemini model for the three LLM components (Diagnoser, Planner, Reflector).
-# gemini-2.0-flash is used for speed and cost-efficiency (free tier via
-# Google AI Studio); all three calls happen per episode so latency compounds.
-LLM_MODEL: str = "gemini-2.0-flash"
+# Groq model for the three LLM components (Diagnoser, Planner, Reflector).
+# llama-3.3-70b-versatile via Groq free tier; fast inference, long-lived
+# API keys, generous daily quota (14,400 req/day).
+LLM_MODEL: str = "llama-3.3-70b-versatile"
 
 # Temperature for LLM calls — kept low for reproducible structured decisions.
 LLM_TEMPERATURE: float = 0.2

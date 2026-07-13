@@ -1,7 +1,7 @@
 """LLM Planner — Phase 9 Reflexion component.
 
 Takes the LLM Diagnoser's structured diagnosis and selects one action from
-the controlled tool library. Uses Gemini with a strict JSON output format.
+the controlled tool library. Uses Groq (Llama) with a strict JSON output format.
 
 Output schema (JSON):
 {
@@ -17,8 +17,7 @@ from __future__ import annotations
 import json
 import os
 
-from google import genai
-from google.genai import types
+from groq import Groq
 
 from agent import agent_config as config
 from agent.episodic_memory import (
@@ -29,15 +28,15 @@ from agent.evaluator import EpisodeReport
 from agent.tool_library import tool_schema_str
 from reasoning.selector import TIER_TO_NAME
 
-_CLIENT: genai.Client | None = None
+_CLIENT: Groq | None = None
 
 _NAME_TO_TIER: dict[str, str] = {v: k for k, v in TIER_TO_NAME.items()}
 
 
-def _client() -> genai.Client:
+def _client() -> Groq:
     global _CLIENT
     if _CLIENT is None:
-        _CLIENT = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY", ""))
+        _CLIENT = Groq(api_key=os.environ.get("GROQ_API_KEY", ""))
     return _CLIENT
 
 
@@ -107,16 +106,16 @@ def plan(
     """
     prompt = _build_prompt(report, diagnosis, policy, context_str)
     try:
-        response = _client().models.generate_content(
-            model    = config.LLM_MODEL,
-            contents = prompt,
-            config   = types.GenerateContentConfig(
-                system_instruction = _SYSTEM,
-                temperature        = config.LLM_TEMPERATURE,
-                max_output_tokens  = config.LLM_MAX_TOKENS_DECISION,
-            ),
+        response = _client().chat.completions.create(
+            model      = config.LLM_MODEL,
+            temperature= config.LLM_TEMPERATURE,
+            max_tokens = config.LLM_MAX_TOKENS_DECISION,
+            messages   = [
+                {"role": "system", "content": _SYSTEM},
+                {"role": "user",   "content": prompt},
+            ],
         )
-        result = json.loads(response.text.strip())
+        result = json.loads(response.choices[0].message.content.strip())
         if result.get("params") is None:
             result["params"] = {}
         return result
