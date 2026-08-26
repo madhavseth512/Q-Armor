@@ -392,7 +392,7 @@ Until publication, the project may be referenced as:
 ```bibtex
 @misc{qarmor2026,
   title        = {Q-Armor: Agentic Quantum-Enhanced Network Intrusion Detection},
-  author       = {Pokhrel, Shiva Raj and Seth, Madhav},
+  author       = { Seth, Madhav and Pokhrel, Shiva Raj},
   year         = {2026},
   institution  = {Deakin University},
   note         = {Research prototype}
