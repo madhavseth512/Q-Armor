@@ -604,6 +604,7 @@ not claim that the thresholds or intervention policy are learned.
 \end{algorithm}
 
 \subsection{Detect$\to$Type Cascade}
+\label{subsec:cascade}
 
 Stage~1 produces a class-oriented attack score and hard binary decision:
 \begin{equation}
@@ -739,16 +740,43 @@ mapping from external labels to PegasosQSVC's internal $\pm1$ labels;
 corresponds to the attack class; (4)~that AUROC computed from the
 oriented margin agrees with a manually constructed toy example. This
 audit is necessary because an inverted score preserves hard-label
-accuracy but reverses ranking metrics. Item~(2) is now enforced
-structurally: every reported result in this paper, including the
-episode-evaluation harness of Section~\ref{subsec:reflexive}, computes
-hard predictions via the native \texttt{predict\_labels()} margin
-decision rather than \texttt{argmax(predict\_proba())} -- a discrepancy
-we discovered while regenerating Table~\ref{tab:episodes}, where the
-uncorrected path produced a hard prediction of ``attack'' for every
-sample in an episode regardless of the underlying AUROC. Items~(1),~(3),
-and~(4) remain open and are listed in
-Table~\ref{tab:protocol_status}.
+accuracy but reverses ranking metrics. All four items are now automated
+as unit tests (\texttt{tests/test\_quantum.py}) and pass: (1)~confirms
+PegasosQSVC's internal map \{benign$\to+1$, attack$\to-1$\}; (2)~confirms
+\texttt{predict\_labels()} agrees exactly with
+\texttt{sign(decision\_function)} under that map; (3)~confirms
+$s_{\text{atk}}=P(\text{attack})$ is correctly anti-correlated with the
+raw margin's positive (benign) direction; (4)~confirms
+\texttt{sklearn}'s \texttt{roc\_auc\_score} agrees with an independent
+pairwise (Mann-Whitney) computation on toy examples with an answer known
+by inspection (perfect separation, perfect reversal, all-tied scores),
+plus a maximally-separable model-facing case yielding AUROC~$=1.0$.
+
+Item~(2)'s underlying fix -- native \texttt{predict\_labels()} margin
+decisions rather than \texttt{argmax(predict\_proba())} -- was already
+enforced in the episode-evaluation harness of
+Section~\ref{subsec:reflexive} and the Detect$\to$Type cascade of
+Section~\ref{subsec:cascade}, a discrepancy discovered while regenerating
+Table~\ref{tab:episodes}, where the uncorrected path produced a hard
+prediction of ``attack'' for every sample in an episode regardless of the
+underlying AUROC. Automating the audit surfaced the same bug a second
+time, in a path the earlier fix had missed: the live per-sample agent
+interface (\texttt{BaseClassifier.predict()} /
+\texttt{predict\_batch()} in \texttt{reasoning/base.py}, called from
+\texttt{AgentCore.process()}) still took the \texttt{argmax(proba)}
+path, so any PegasosQSVC-backed deployment of the agent -- as opposed to
+the batch-evaluation scripts used for every result in this paper -- would
+have inherited the degenerate decision. Routing it through
+\texttt{predict\_labels()} exposed a third, independent bug: the base
+class's default \texttt{predict\_labels()} returned raw
+\texttt{argmax} column indices rather than \texttt{classes\_} values --
+silently correct only for the binary $\{0,1\}$ models, where index and
+value coincide, and wrong for any classifier with non-integer or
+non-$0..n{-}1$ class labels, i.e.\ the string-labelled coarse-type
+models. All three are now fixed and covered by the regression suite
+(114/114 tests pass); none affects a headline number in this paper, since
+every reported result was already computed through the batch scripts
+rather than \texttt{AgentCore.process()}.
 
 \subsection{Confirmatory Protocol}
 \label{subsec:confirmatory}
@@ -807,9 +835,9 @@ $\sim$ partial, \ding{55}\ open.}
 \midrule
 \multicolumn{2}{@{}l}{\textit{Score-audit protocol (Sec.~\ref{subsec:audit_status})}} \\
 Hard decisions via native margin, not argmax(proba) & \ding{51} \\
-Label $\to$ internal $\pm1$ mapping verified & $\sim$ \\
-\texttt{predict} vs.\ sign(\texttt{decision\_function}) test & \ding{55} \\
-Manual toy-example AUROC agreement check & \ding{55} \\
+Label $\to$ internal $\pm1$ mapping verified & \ding{51} \\
+\texttt{predict} vs.\ sign(\texttt{decision\_function}) test & \ding{51} \\
+Manual toy-example AUROC agreement check & \ding{51} \\
 \midrule
 \multicolumn{2}{@{}l}{\textit{Confirmatory protocol (Sec.~\ref{subsec:confirmatory})}} \\
 Multi-seed repetition (10+ seeds, bootstrap CI) & \ding{55} \\

@@ -74,26 +74,45 @@ class BaseClassifier(ABC):
             X: Feature matrix of shape (n_samples, n_features).
 
         Returns:
-            Integer label array of shape (n_samples,), values in classes_.
+            Label array of shape (n_samples,), values in classes_. (Prior to
+            this fix, the default returned raw argmax column indices instead
+            of classes_ values — silently correct only for binary {0,1}
+            models where index and value coincide; wrong for any classifier
+            with non-0..n-1 classes_, e.g. the string-labelled coarse-type
+            models. Caught when predict()/predict_batch() were routed through
+            predict_labels() and multiclass tests failed with a lookup
+            IndexError.)
         """
-        return self.predict_proba(np.asarray(X, dtype=float)).argmax(axis=1)
+        idx = self.predict_proba(np.asarray(X, dtype=float)).argmax(axis=1)
+        return self.classes_[idx]
 
     def predict(self, x: np.ndarray) -> tuple[str, float, str]:
         """Predict a single sample under the uniform agent contract.
+
+        Uses ``predict_labels()`` for the hard decision, not argmax(proba) —
+        for models whose probability output is not calibrated around 0.5
+        (e.g. PegasosQSVC), the two disagree (see ``predict_labels`` docs).
 
         Args:
             x: A single feature vector of shape (n_features,).
 
         Returns:
-            Tuple ``(label, confidence, model_name)`` where ``confidence`` is the
-            maximum class probability in [0, 1].
+            Tuple ``(label, confidence, model_name)`` where ``confidence`` is
+            the predicted class's probability in [0, 1] (not necessarily the
+            row max, since the hard decision need not match argmax(proba)).
         """
-        proba = self.predict_proba(np.asarray(x, dtype=float).reshape(1, -1))[0]
-        idx = int(np.argmax(proba))
-        return str(self.classes_[idx]), float(proba[idx]), self.name
+        X = np.asarray(x, dtype=float).reshape(1, -1)
+        proba = self.predict_proba(X)[0]
+        label_val = self.predict_labels(X)[0]
+        classes = self.classes_
+        idx = int(np.where(classes == label_val)[0][0])
+        return str(classes[idx]), float(proba[idx]), self.name
 
     def predict_batch(self, X: np.ndarray) -> list[tuple[str, float, str]]:
         """Predict a batch of samples.
+
+        Uses ``predict_labels()`` for the hard decision, not argmax(proba) —
+        see :meth:`predict`.
 
         Args:
             X: Feature matrix of shape (n_samples, n_features).
@@ -101,10 +120,13 @@ class BaseClassifier(ABC):
         Returns:
             List of ``(label, confidence, model_name)`` tuples, one per row.
         """
-        proba = self.predict_proba(np.asarray(X, dtype=float))
-        idx = np.argmax(proba, axis=1)
+        X = np.asarray(X, dtype=float)
+        proba = self.predict_proba(X)
+        labels = self.predict_labels(X)
         classes = self.classes_
-        return [(str(classes[i]), float(proba[r, i]), self.name) for r, i in enumerate(idx)]
+        idx_of = {c: i for i, c in enumerate(classes)}
+        return [(str(l), float(proba[r, idx_of[l]]), self.name)
+                for r, l in enumerate(labels)]
 
     # -- persistence -------------------------------------------------------
 
