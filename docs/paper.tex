@@ -1,9 +1,8 @@
 % ============================================================
-% IEEE Double-Column Conference Format
-% Q-Armor: An Agentic Quantum Kernel Framework
-% for Adaptive Network Intrusion Detection
+% IEEE Conference Format
+% A Reflexive Quantum-Kernel Intrusion Detection Approach
 % Authors: Madhav Seth and Shiva Raj Pokhrel
-% Deakin University, 2026
+% Deakin University / IIT Kharagpur, 2026
 % ============================================================
 
 \documentclass[conference]{IEEEtran}
@@ -20,23 +19,24 @@
 \usepackage{algorithmic}
 \usepackage{cite}
 \usepackage{url}
+\usepackage{pifont}
 
-% Fix booktabs rule weights inside IEEEtran
 \setlength{\heavyrulewidth}{0.08em}
 \setlength{\lightrulewidth}{0.05em}
+
+\newtheorem{proposition}{Proposition}
 
 % ============================================================
 \begin{document}
 
-\title{Q-Armor: An Agentic Quantum Kernel Framework
-for Adaptive Network Intrusion Detection}
+\title{A Reflexive Quantum-Kernel Intrusion Detection Approach}
 
 \author{
 \IEEEauthorblockN{Madhav Seth}
 \IEEEauthorblockA{Indian Institute of Technology, Kharagpur\\
 Kharagpur, India}
 \and
-\IEEEauthorblockN{Shiva Raj Pokhrel}
+\IEEEauthorblockN{Shiva Raj Pokhrel, \textit{Senior Member, IEEE}}
 \IEEEauthorblockA{School of Information Technology\\
 Deakin University, Australia}
 }
@@ -45,38 +45,36 @@ Deakin University, Australia}
 
 % ---- Abstract -----------------------------------------------
 \begin{abstract}
-Detecting network intrusions in heterogeneous IoT environments demands
-both high detection accuracy and the ability to adapt when traffic
-distributions shift across deployments. Classical intrusion detection
-systems (IDS) lack a principled mechanism to reflect on past
-performance and update their model-selection policy accordingly.
-We present \textbf{Q-Armor}, a five-module agentic IDS that couples
-a quantum fidelity kernel (8-qubit \textit{CyberSecurityFeatureMap})
-with a Reflexion-inspired outer loop for reflective policy learning.
-The inner loop performs binary attack detection via
-\textit{PegasosQSVC} and routes confirmed attacks to a classical
-Random Forest typer across five coarse attack classes (DoS,
-Injection, Recon, Backdoor, Benign). The outer loop comprises an
-\textit{Evaluator}, a heuristic \textit{SelfReflector} generating
-four lesson types (REINFORCE, SWITCH\_MODEL, SWITCH\_SUBSET,
-BINARY\_ONLY), and an \textit{EpisodicMemory} that mutates the
-model-selection policy based on accumulated experience.
-We validate on two large-scale NetFlow datasets: NF-ToN-IoT
-(1.38M flows, 80.4\% attack) and NF-UNSW-NB15 (1.62M flows,
-4.5\% attack). On the sealed test set, the quantum cascade achieves
-AUROC~$= 0.973$ within-domain. Under cross-domain distribution
-shift, SWITCH\_SUBSET retraining on 150 target-domain samples
-recovers AUROC from $0.606$ to $0.913$ ($+0.306$) and
-FPR@95 from $0.974$ to $0.198$. The Reflexion loop autonomously fires
-SWITCH\_SUBSET after detecting drift in episode 6 of a 10-episode
-simulation, demonstrating end-to-end policy adaptation without
-human intervention.
+Network intrusion detectors trained on one deployment can degrade sharply
+when traffic statistics, attack mechanisms, or class priors change across
+networks. This paper presents \textbf{Q-ARMOR}, a stateful
+quantum--classical intrusion-detection architecture that couples an
+8-qubit fidelity quantum kernel with episodic performance monitoring and
+targeted cross-domain adaptation. The data plane uses a
+Detect$\to$Type cascade: PegasosQSVC performs binary attack detection and
+a classical Random Forest performs coarse attack typing. The control plane
+maintains episodic memory and applies explicit adaptation actions when
+detector performance and drift evidence indicate that the current
+operating regime is no longer adequate. Unlike reinforcement-learning
+claims, the present controller is formulated conservatively as a
+deterministic reflexive policy whose state persists across episodes. We
+evaluate Q-Armor on NF-ToN-IoT (1.38M flows) and NF-UNSW-NB15 (1.62M
+flows). Within-domain AUROC reaches \textbf{0.973} with macro-F1
+\textbf{0.496}; cross-domain AUROC drops to \textbf{0.606} and recovers to
+\textbf{0.913} after retraining on 150 target samples. We also formalise
+fidelity-kernel PSD properties, finite-shot concentration, and adaptation
+assumptions, and we report a preliminary pilot in which the deterministic
+reflector is replaced by an LLM-gated inference-time decision function
+guarded by a deterministic verifier -- explicitly \emph{not} a
+reinforcement-learning extension. The results support quantum-kernel
+adaptation as a compact representation study, not a claim of quantum
+advantage.
 \end{abstract}
 
 \begin{IEEEkeywords}
-network intrusion detection, quantum machine learning, agentic AI,
-Reflexion, concept drift, federated quantum kernel, IoT security,
-adaptive policy learning
+network intrusion detection, quantum machine learning, quantum kernel,
+domain shift, concept drift, adaptive security, episodic memory, IoT
+security, large language model agents
 \end{IEEEkeywords}
 
 % ============================================================
@@ -84,716 +82,1179 @@ adaptive policy learning
 \label{sec:introduction}
 % ============================================================
 
-The rapid proliferation of Internet-of-Things (IoT) devices has
-expanded the attack surface of networked systems, with Denial-of-Service
-(DoS), injection, and reconnaissance attacks accounting for the
-majority of observed incidents~\cite{ciciot2023}. Effective intrusion
-detection must simultaneously address three structural challenges:
-(i)~\textit{multi-class attack typing} beyond binary detection;
-(ii)~\textit{cross-domain generalisation} when a model trained on
-one traffic distribution is deployed in another; and (iii)~\textit{quantum
-feasibility} — quantum kernel methods offer enhanced feature-space
-expressivity but are constrained to small training subsets by their
-$O(n^2)$ circuit cost~\cite{havlicek2019}.
+Network intrusion detection is intrinsically non-stationary. A detector
+trained on one network may encounter different protocol mixtures, service
+profiles, traffic volumes, attack families, and class priors after
+deployment. Consequently, strong within-dataset accuracy does not by
+itself establish operational robustness. The central question studied
+here is therefore not whether a quantum classifier can fit one
+intrusion-detection dataset, but whether a compact quantum-kernel detector
+can be \emph{monitored and selectively adapted} when its deployment
+distribution changes.
 
-Classical IDS approaches based on Random Forests or Support Vector
-Machines~\cite{scikit2011} achieve strong within-dataset performance
-but lack any mechanism to reflect on degraded performance and
-autonomously update their operating policy. The Reflexion framework
-by Shinn et al.~\cite{shinn2023} introduced the concept of verbal
-self-reflection in language agents — an agent evaluates its own
-trajectory, writes a lesson into episodic memory, and modifies
-its strategy on the next trial. We adapt this principle to network
-security: instead of verbal reflection via a language model, we
-implement a \textit{structured heuristic reflector} that derives
-policy mutations (lesson types) from measurable performance signals
-(AUROC, drift indicator, consecutive success count).
+Quantum kernel methods provide a useful representation-learning testbed
+because classical flow vectors are embedded into quantum states and
+compared through state overlap \cite{havlicek2019, schuld2019}. However,
+such models also face important limitations: kernel estimation scales
+quadratically with training-set size, finite shots perturb Gram matrices,
+noise can collapse useful kernel variation, and classical models may match
+quantum prediction once sufficient labelled data are available
+\cite{huang2021, cerezo2022, thanasilp2024}. We therefore make no quantum
+speedup or quantum-advantage claim. Instead, the quantum component is
+studied as a small-sample representation and adaptation mechanism embedded
+inside a larger security control loop.
 
-This paper makes the following contributions:
+A second challenge is terminology. A controller that records outcomes and
+executes hand-designed rules is stateful and autonomous, but it is not
+automatically a learned policy. The original prototype was inspired by the
+actor--evaluator--memory structure of Reflexion \cite{shinn2023}; the
+revised formulation therefore uses the more precise term \emph{reflexive
+episodic control}. The current controller stores performance episodes,
+selects actions from a finite intervention set, and persists state, but
+its action logic remains deterministic. This distinction is important for
+reproducibility and for separating demonstrated capability from future
+meta-learning extensions -- including the LLM-gated pilot introduced in
+Section~\ref{subsec:llm_pilot}, which is likewise not a learned policy.
+
+\subsection{Research Questions}
+
+We organise the study around four research questions.
+
 \begin{enumerate}
-    \item We propose \textbf{Q-Armor}, an agentic IDS
-    combining a quantum fidelity kernel with Reflexion-style
-    episodic self-reflection for adaptive model-selection policy
-    learning. To our knowledge, no prior system couples
-    quantum kernels with episodic policy memory for network
-    intrusion detection.
-
-    \item We introduce the \textbf{CyberSecurityFeatureMap}, an
-    8-qubit parameterised circuit encoding IoT NetFlow features
-    with entanglement pairs derived from empirical correlation
-    analysis, yielding a provably positive-semi-definite fidelity
-    kernel.
-
-    \item We design a \textbf{Detect$\to$Type cascade}: Stage~1
-    (PegasosQSVC binary detection) feeds Stage~2 (Random Forest
-    multi-class typing) over a unified 5-class coarse taxonomy
-    spanning two heterogeneous datasets.
-
-    \item We introduce \textbf{SWITCH\_SUBSET}: a cross-domain
-    adaptation mechanism that reselects a $k$-means kernel subset
-    from target-domain samples and retrains the quantum SVM,
-    recovering AUROC by $+0.306$ on a sealed cross-domain test set.
-
-    \item We validate Q-Armor on two large-scale public NetFlow
-    datasets (NF-ToN-IoT and NF-UNSW-NB15) with sealed test splits,
-    providing reproducible baselines for quantum IDS research.
+\item \textbf{Within-domain utility.} Can a small, balanced quantum-kernel
+subset provide useful binary attack discrimination on held-out traffic?
+\item \textbf{Cross-domain robustness.} How severely does performance
+degrade when the source-trained detector is transferred to a
+heterogeneous target network?
+\item \textbf{Target-budget adaptation.} Can representative reselection of
+a small labelled target subset recover part of the lost binary detection
+performance?
+\item \textbf{Reflexive control.} Can persistent episodic state
+distinguish between a degradation event requiring model switching and one
+requiring target-domain retraining under the present supervised-feedback
+assumptions?
 \end{enumerate}
 
-The remainder of this paper is organised as follows.
-Section~\ref{sec:related} reviews related work.
-Section~\ref{sec:architecture} describes the system architecture.
-Section~\ref{sec:methodology} details the quantum kernel, Reflexion
-loop, and cascade design.
-Section~\ref{sec:results} presents experimental results.
-Section~\ref{sec:discussion} discusses implications and limitations,
-and Section~\ref{sec:conclusion} concludes.
+\subsection{Contributions}
+
+The paper makes the following contributions.
+
+\begin{enumerate}
+\item We formulate Q-ARMOR as a two-plane adaptive IDS: a
+quantum--classical Detect$\to$Type data plane and a persistent episodic
+control plane. The revision explicitly distinguishes deterministic
+reflexive control from reinforcement or policy learning.
+\item We define an 8-qubit \textit{CyberSecurityFeatureMap} and fidelity
+kernel for NetFlow features and state the exact positive-semidefinite
+property of the ideal kernel. We additionally derive a finite-shot
+entry-wise error bound that links quantum measurement budget to
+kernel-estimation accuracy.
+\item We introduce \textsc{Switch-Subset}, a target-budget adaptation
+mechanism that reselects a representative balanced target subset and
+retrains the binary quantum-kernel detector without retraining on the
+full target dataset.
+\item We provide cross-domain evidence on NF-ToN-IoT and NF-UNSW-NB15 and
+explicitly separate observed domain shift from the stronger concept-drift
+claim. The current results show a binary AUROC recovery of $+0.307$ after
+target-subset adaptation, while also showing that attack typing does not
+transfer.
+\item We define a publication-grade validation protocol covering score
+orientation, leakage control, equal target-label budgets, natural class
+prevalence, repeated seeds, calibration, kernel geometry, finite-shot
+noise, and intervention cost, and we report -- honestly and item by item
+-- which parts of that protocol the present study satisfies
+(Section~\ref{subsec:protocol_status}).
+\item We report a preliminary pilot in which the heuristic reflector is
+replaced by a four-stage LLM-gated decision function (Diagnoser, Planner,
+deterministic Verifier, Reflector) as an alternative, \emph{not learned},
+reflexive controller, and compare it against the heuristic baseline under
+identical episode conditions (Section~\ref{subsec:llm_pilot}).
+\end{enumerate}
 
 % ============================================================
-\section{Related Work}
+\section{Related Work \& Q-Armor}
 \label{sec:related}
 % ============================================================
 
-\subsection{Network Intrusion Detection}
+\subsection{Intrusion Detection under Distribution Shift}
 
-Machine learning methods for IDS have evolved from classical
-decision-tree and SVM approaches to ensemble methods and deep
-learning~\cite{liao2013}. Random Forests remain competitive on
-tabular network flow data due to their robustness to feature
-scale and class imbalance~\cite{breiman2001}. However, most
-published IDS models are trained and evaluated on a single dataset
-and lack cross-domain validation, overstating generalisation.
+Classical intrusion detection spans tree ensembles, kernel methods, deep
+neural networks, and representation-learning approaches \cite{liao2013}.
+Random Forests remain strong baselines for tabular flow data because they
+capture nonlinear interactions without requiring feature standardisation
+\cite{breiman2001}. A persistent weakness in IDS evaluation is that train
+and test data are often drawn from the same corpus, even though deployment
+occurs under a different traffic distribution. Domain-adaptation theory
+makes this distinction explicit: target risk depends on both source error
+and divergence between source and target distributions \cite{bendavid2010}.
+We therefore treat NF-ToN-IoT $\to$ NF-UNSW-NB15 as a cross-domain
+transfer problem rather than assuming that every cross-dataset change is a
+concept drift.
 
-\subsection{Quantum Machine Learning for Security}
+\subsection{Quantum Kernels and Quantum Machine Learning}
 
-Biamonte et al.~\cite{biamonte2017} established theoretical
-foundations for quantum ML, showing that quantum kernels can
-represent classically intractable feature maps. Havlicek
-et al.~\cite{havlicek2019} demonstrated the first practical
-quantum-enhanced SVM using fidelity kernels on IBM hardware.
-Quantum IDS research remains nascent: prior work has applied
-quantum annealing and variational circuits to binary traffic
-classification~\cite{kalinin2022}, but none has coupled quantum
-kernels with reflective-learning agents or evaluated cross-domain
-drift adaptation.
+Quantum feature maps embed classical vectors into quantum states and use
+state overlap as a kernel for a classical convex learner
+\cite{havlicek2019, schuld2019}. The appeal is representational rather
+than automatically computational: an expressive Hilbert-space map may
+generate geometry that differs from conventional classical kernels.
+However, Huang et al. showed that classical learners can often reproduce
+useful predictive structure once data are available, motivating explicit
+classical--quantum geometric comparisons \cite{huang2021}. More recently,
+Thanasilp et al. established that fidelity kernels can exhibit exponential
+concentration due to embedding expressivity, global measurements,
+entanglement, or noise \cite{thanasilp2024}. These results motivate
+shallow, problem-inspired embeddings, finite-shot sensitivity analysis,
+and conservative claims.
 
-\subsection{Concept Drift and Domain Adaptation}
+Quantum intrusion-detection studies remain relatively immature compared
+with classical IDS literature. Existing work has explored quantum
+classification and hybrid models for security data \cite{kalinin2022};
+nevertheless, many studies use small balanced samples, ideal simulation,
+or within-dataset evaluation. Q-ARMOR therefore focuses specifically on
+the interaction between compact quantum-kernel learning and cross-domain
+adaptation.
 
-Concept drift in network traffic — where the statistical properties
-of flows change over time or across deployments — is a well-studied
-challenge~\cite{lu2018}. ADWIN (Adaptive Windowing) by
-Bifet and Gavalda~\cite{bifet2007} provides a principled
-change-point detector with formal guarantees on false-alarm rate.
-Our planning module streams per-sample prediction errors through
-ADWIN to detect distributional shift, triggering retraining
-when drift is confirmed.
+\subsection{Drift Detection and Reflexive Agents}
 
-\subsection{Reflexion and Agentic Frameworks}
+ADWIN detects statistically significant changes in a monitored stream
+using adaptive windows \cite{bifet2007}. When it is fed prediction errors,
+labels are required; this is an important deployment assumption rather
+than a label-free drift solution. Separately, Reflexion introduced
+episodic self-evaluation and memory for language agents \cite{shinn2023}.
+Q-ARMOR borrows the architectural pattern of actor, evaluator, memory, and
+revised action, but uses typed numerical interventions rather than
+natural-language self-critique. The current version therefore constitutes
+a \emph{reflexive controller}; learning the intervention policy itself is
+left to a future contextual-bandit or reinforcement-learning extension. A
+second, LLM-gated variant of the reflector is piloted in
+Section~\ref{subsec:llm_pilot}; it substitutes natural-language reasoning
+for the four hand-coded rules but, like the rule-based controller, updates
+no parameters from experience and therefore does not constitute policy
+learning either.
 
-Shinn et al.~\cite{shinn2023} introduced Reflexion, where an
-agent evaluates its own action trajectory, generates a natural
-language lesson via a language model, and stores it in episodic
-memory to inform the next trial. We adapt this architecture for
-a security context where (i) the ``actor'' is a quantum + classical
-classifier cascade, (ii) the ``evaluator'' computes measurable
-metrics (AUROC, macro-F1, FPR@95), and (iii) the ``reflector''
-is a deterministic rule engine rather than an LLM, producing
-four typed policy mutations grounded in security domain knowledge.
+\subsection{Originality and Novelty of Q-ARMOR}
+
+Figure~\ref{fig:overview} presents the originality and novelty of Q-ARMOR
+as a reflexive, hybrid intrusion-detection architecture designed for
+cross-domain network security adaptation. The system is organised into two
+tightly coupled components: an inner detection pipeline and an outer
+adaptation loop. The inner pipeline begins with NetFlow feature
+preprocessing, followed by an 8-qubit \textit{CyberSecurityFeatureMap}
+that embeds traffic features into a quantum feature space. A fidelity
+quantum kernel is then constructed and used by PegasosQSVC for Stage~1
+binary attack detection. Samples classified as benign terminate at this
+stage, whereas predicted attacks are forwarded to a Stage~2 classical
+Random Forest typer for coarse attack categorisation, including DoS,
+Injection, Recon, and Backdoor. The source-to-target transition from
+NF-ToN-IoT to NF-UNSW-NB15 explicitly represents the cross-domain setting,
+where substantial differences in traffic distributions and attack
+taxonomies introduce severe deployment shift. Thus, Q-Armor is formulated
+not as a static classifier, but as a structured framework for quantum
+representation, intrusion detection, and adaptive response under network
+domain shift.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig1_overview.png}
+\caption{Proposed Q-ARMOR framework: reflexive quantum-kernel intrusion
+detection under cross-domain shift. Left: source/target problem setting.
+Centre: inner detection pipeline (top) and outer reflexive adaptation loop
+(bottom). Right: novelty summary.}
+\label{fig:overview}
+\end{figure*}
+
+The main originality of the architecture lies in its reflexive episodic
+control layer, which transforms the detector from a passive prediction
+model into an adaptive IDS. The outer loop integrates an Evaluator, Drift
+Monitor, Self-Reflector, Episodic Memory, and intervention module,
+enabling performance evidence to trigger actions such as model switching,
+subset reselection, retraining, or restricted operating modes. The
+empirical observations summarised in Figure~\ref{fig:overview} show strong
+within-domain performance (AUROC~$=0.973$, macro-F1~$=0.496$), substantial
+zero-shot degradation under source$\to$target transfer (AUROC~$=0.606$),
+and partial recovery after adaptation using 150 representative
+target-domain samples (AUROC~$=0.913$). Importantly, the architecture is
+positioned conservatively as a study of the adaptive representation of
+quantum kernels under distribution shift, rather than as evidence of
+quantum advantage. Section~\ref{sec:discussion} discusses current
+limitations, including weak cross-domain Stage~2 typing and
+simulator-based quantum execution, providing a rigorous summary of both
+the novelty and the present experimental evidence.
 
 % ============================================================
-\section{System Architecture}
-\label{sec:architecture}
+\section{Problem Formulation and Deployment Assumptions}
+\label{sec:problem}
 % ============================================================
 
-Q-Armor implements a two-loop agentic architecture. The
-\textit{inner loop} processes each flow sample through five
-modules: \textbf{Perception} (quantum feature extraction and
-scaling), \textbf{Reasoning} (model selection and prediction),
-\textbf{Planning} (confidence monitoring, ADWIN drift detection,
-and mitigation decisions), \textbf{Action} (alert generation,
-severity scoring, and defence recommendation), and \textbf{Memory}
-(persistent model and state storage). \textbf{Inference operates
-in batch-evaluation mode}: flows are accumulated over an episode
-and classified collectively; real-time per-packet classification
-is not the target use case, as the quantum kernel's $O(n_\text{test}
-\times n_\text{sv})$ circuit cost precludes sub-millisecond
-latency (see Section~\ref{sec:discussion}). The
-\textit{outer Reflexion loop} operates at episode granularity
-(one episode = 100 flows) and comprises:
+Let the source domain be $\mathcal{D}_S = \{(\mathbf{x}_i, y_i,
+c_i)\}_{i=1}^{N_S}$ and the target domain be $\mathcal{D}_T =
+\{(\mathbf{x}_j, y_j, c_j)\}_{j=1}^{N_T}$, where $\mathbf{x} \in
+\mathbb{R}^8$ denotes a NetFlow feature vector, $y \in \{0,1\}$ is the
+binary benign/attack label, and $c$ denotes a coarse attack type when
+$y=1$. Cross-domain operation allows
+\begin{equation}
+P_S(\mathbf{X}) \neq P_T(\mathbf{X}), \qquad P_S(Y) \neq P_T(Y),
+\label{eq:shift1}
+\end{equation}
+and possibly
+\begin{equation}
+P_S(Y \mid \mathbf{X}) \neq P_T(Y \mid \mathbf{X}).
+\label{eq:shift2}
+\end{equation}
+where the first two correspond to covariate and label-prior shift; the
+last constitutes conditional/concept shift. A dataset switch can contain
+any combination of the three, so we use \emph{domain shift} unless the
+changed conditional is established.
 
-\begin{itemize}
-    \item \textbf{Evaluator}: aggregates per-sample prediction
-    arrays into an \texttt{EpisodeReport} containing AUROC,
-    binary F1, macro-F1, AUPR, and FPR@TPR95.
-    \item \textbf{SelfReflector}: applies four heuristic rules
-    to the report, writing a typed \texttt{Lesson} with policy
-    parameters (see Section~\ref{subsec:reflexion}).
-    \item \textbf{EpisodicMemory}: appends each
-    \texttt{(EpisodeReport, Lesson)} pair to an append-only JSONL
-    log and mutates the in-memory model-selection policy.
-\end{itemize}
+\subsection{Detection and Typing Objectives}
 
-The policy governs model hierarchy order and retraining flags.
-On each episode the agent selects the highest-ranked registered
-model, evaluates it, reflects, and optionally retrains before
-the next episode. This mirrors the Reflexion actor--evaluator--
-reflector--memory cycle of~\cite{shinn2023}, with structured
-lessons replacing verbal self-critique.
-
-% ============================================================
-\section{Methodology}
-\label{sec:methodology}
-% ============================================================
-
-\subsection{Datasets and Preprocessing}
-\label{subsec:datasets}
-
-We use two publicly available NetFlow-standardised datasets with
-a common 8-feature schema, enabling cross-dataset evaluation
-without feature re-engineering~\cite{sarhan2021}.
-
-\textbf{NF-ToN-IoT}~\cite{toniot}: 1,379,274 flow records with
-80.4\% attack traffic, comprising DoS, DDoS, injection, password
-attacks, backdoor, MITM, ransomware, and scanning categories.
-An 80/20 stratified split yields 1,103,419 training and 275,855
-test flows.
-
-\textbf{NF-UNSW-NB15}~\cite{sarhan2021}: 1,623,118 flow records
-with only 4.5\% attack traffic, spanning Exploits, Fuzzers,
-Reconnaissance, DoS, Analysis, Backdoor, Shellcode, and Worms.
-An 80/20 stratified split yields 1,298,494 training and 324,624
-test flows.
-
-The 8 features selected are: \texttt{L4\_DST\_PORT},
-\texttt{OUT\_BYTES}, \texttt{L4\_SRC\_PORT},
-\texttt{FLOW\_DURATION\_MILLISECONDS}, \texttt{IN\_BYTES},
-\texttt{TCP\_FLAGS}, \texttt{OUT\_PKTS}, \texttt{IN\_PKTS}.
-Seven of these are log-transformed ($\log_{1+x}$) before
-MinMax scaling to $[0, \pi]$, mapping each feature to a valid
-qubit rotation angle.
-
-A unified \textbf{5-class coarse taxonomy} maps each dataset's
-native attack labels to: \{Benign, DoS, Injection, Recon,
-Backdoor\}. For example, NF-ToN-IoT's \texttt{scanning}
-$\to$ Recon; NF-UNSW-NB15's \texttt{Exploits}
-$\to$ Injection, \texttt{Fuzzers} $\to$ Recon,
-\texttt{Generic} $\to$ DoS.
-
-Table~\ref{tab:datasets} summarises the key dataset statistics.
+Stage~1 learns a binary score $s(\mathbf{x})$ and decision
+$\hat{y}^{(1)} \in \{0,1\}$. Stage~2 is conditionally invoked for samples
+routed as attacks and predicts a coarse category. The primary operational
+objective is not accuracy alone, but a vector of detection quality and
+cost:
+\begin{equation}
+\mathcal{J} = \alpha_1(1-\text{AUPRC}) + \alpha_2 \text{FPR}_{95} +
+\alpha_3 C_{\text{label}} + \alpha_4 C_{\text{quantum}} + \alpha_5
+C_{\text{adapt}},
+\label{eq:objective}
+\end{equation}
+where $\alpha_k$ encode the deployment trade-off. Equation~\eqref{eq:objective}
+provides a target for future learned controllers; the present prototype
+uses fixed threshold rules rather than directly optimising $\mathcal{J}$.
 
 \begin{table}[t]
 \centering
-\caption{Dataset statistics for the two NetFlow-standardised
-benchmark datasets used in Q-Armor evaluation.}
+\caption{Dataset statistics used by the current prototype.}
 \label{tab:datasets}
 \renewcommand{\arraystretch}{1.1}
 \begin{tabular}{@{}lcc@{}}
 \toprule
 \textbf{Property} & \textbf{NF-ToN-IoT} & \textbf{NF-UNSW-NB15} \\
 \midrule
-Total flows         & 1,379,274  & 1,623,118  \\
-Attack ratio        & 80.4\%     & 4.5\%      \\
-Training rows       & 1,103,419  & 1,298,494  \\
-Test rows           & 275,855    & 324,624    \\
-Features (quantum)  & 8          & 8          \\
-Native attack types & 9          & 9          \\
-Coarse classes      & 5          & 5          \\
+Total flows          & 1,379,274 & 1,623,118 \\
+Attack ratio          & 80.4\%    & 4.5\%     \\
+Training rows         & 1,103,419 & 1,298,494 \\
+Test rows             & 275,855   & 324,624   \\
+Quantum features       & 8         & 8         \\
+Native attack types    & 9         & 9         \\
+Coarse classes         & 5         & 5         \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Quantum Perception: CyberSecurityFeatureMap}
+\subsection{Label-Feedback Model}
+
+The current ADWIN configuration monitors binary prediction errors and the
+episodic evaluator computes AUROC/F1. Hence the controller requires
+ground-truth feedback. We model this explicitly: labels become available
+after delay $d_t \leq D$. The reported offline experiments correspond to
+$D=0$. In a live SOC, labels may come from analyst adjudication,
+sandboxing, downstream incident confirmation, or delayed threat
+intelligence. Therefore the present experiments evaluate
+\emph{supervised} adaptive detection; label-free drift triggering remains
+an extension rather than a claimed capability.
+
+\subsection{Threat Model}
+
+We assume that the initial source training set is trusted, target traffic
+may differ from the source distribution, and the adaptation pool contains
+analyst-confirmed or otherwise trusted labels. The prototype does not
+defend against poisoning of the target adaptation pool or episodic
+memory. This limitation is security-relevant because an attacker who
+controls adaptation samples can induce persistent model changes. Robust
+adaptation under contaminated target pools is therefore included in the
+required extension protocol in Section~\ref{subsec:confirmatory}.
+
+% ============================================================
+\section{Q-Armor Architecture}
+\label{sec:architecture}
+% ============================================================
+
+Q-ARMOR separates fast security decisions from slower adaptation. The
+\emph{data plane} maps each flow through five functional modules:
+Perception, Reasoning, Planning, Action, and Memory. The \emph{control
+plane} operates at episode granularity and contains an Evaluator,
+SelfReflector, EpisodicMemory, and ModelSelector (Figure~\ref{fig:logical}).
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig2_logical_architecture.png}
+\caption{Logical architecture of Q-Armor. The inner plane runs the
+Detect$\to$Type detection pipeline per flow; the outer plane runs the
+reflexive adaptation loop per episode. SelfReflector is a deterministic,
+stateful controller; it is not claimed to learn an RL policy.}
+\label{fig:logical}
+\end{figure*}
+
+The episodic memory stores tuples
+\begin{equation}
+\mathcal{M}_t = \{(r_i, a_i, \pi_i)\}_{i=1}^{t},
+\label{eq:memory}
+\end{equation}
+where $r_i$ is an EpisodeReport, $a_i$ the selected intervention, and
+$\pi_i$ the persistent controller state. Memory therefore provides history
+and persistence, but not by itself statistical policy learning.
+
+% ============================================================
+\section{Methodology}
+\label{sec:methodology}
+% ============================================================
+
+\subsection{Datasets, Feature Schema, and Taxonomy}
+\label{subsec:datasets}
+
+We use two NetFlow-standardised corpora sharing a common feature schema:
+NF-ToN-IoT and NF-UNSW-NB15 \cite{sarhan2021, toniot}. Dataset statistics
+are shown in Table~\ref{tab:datasets}.
+
+The eight quantum inputs are \texttt{L4\_DST\_PORT}, \texttt{OUT\_BYTES},
+\texttt{L4\_SRC\_PORT}, \texttt{FLOW\_DURATION\_MILLISECONDS},
+\texttt{IN\_BYTES}, \texttt{TCP\_FLAGS}, \texttt{OUT\_PKTS}, and
+\texttt{IN\_PKTS}. Heavy-tailed count/duration variables are transformed
+with $\log(1+x)$ and all eight features are MinMax scaled to $[0,\pi]$
+using parameters fitted on the relevant training partition only.
+
+The prototype maps native labels into $\{\text{Benign}, \text{DoS},
+\text{Injection}, \text{Recon}, \text{Backdoor}\}$. Because cross-dataset
+taxonomies are not semantically identical, this mapping is an engineering
+abstraction rather than ground-truth equivalence. Binary transfer is
+therefore the primary cross-domain endpoint; typed transfer is analysed
+separately and interpreted conservatively.
+
+\subsection{Cyber Security Feature Map}
 \label{subsec:featuremap}
 
-The \textbf{CyberSecurityFeatureMap} encodes the 8 scaled flow
-features into an 8-qubit parameterised circuit using angle
-encoding. Each feature $x_i \in [0, \pi]$ is applied via a
-rotation gate $R_y(x_i)$ on qubit $q_i$. Entanglement layers
-consist of $CNOT$ gates applied to four pairs derived from the
-empirical Pearson correlation matrix of NF-ToN-IoT (log\textsubscript{1p}
-+ MinMax-scaled features, $n = 200{,}000$ subsample, seed~$= 42$):
-$(q_1, q_6)$, $(q_4, q_7)$, $(q_6, q_7)$, $(q_4, q_6)$,
-corresponding to the four strongest inter-feature correlations
-(OUT\_BYTES--OUT\_PKTS: $+0.926$; IN\_BYTES--IN\_PKTS: $+0.911$;
-OUT\_PKTS--IN\_PKTS: $+0.814$; IN\_BYTES--OUT\_PKTS: $+0.774$).
-The circuit is repeated $r = 2$ times (FEATURE\_MAP\_REPS).
-
-The \textbf{fidelity quantum kernel} is:
+For $\mathbf{x} = (x_1,\dots,x_8) \in [0,\pi]^8$, the feature map prepares
 \begin{equation}
-    K(\mathbf{x}, \mathbf{x}') =
-    \left|\langle \phi(\mathbf{x}) | \phi(\mathbf{x}') \rangle\right|^2
-    \label{eq:kernel}
+|\phi(\mathbf{x})\rangle = U_\phi(\mathbf{x})|0\rangle^{\otimes 8}.
+\label{eq:featuremap}
 \end{equation}
-where $|\phi(\mathbf{x})\rangle = U(\mathbf{x})|0\rangle^{\otimes 8}$
-and $U(\mathbf{x})$ is the CyberSecurityFeatureMap circuit.
-The kernel is evaluated via the Qiskit
-\texttt{FidelityQuantumKernel} with \texttt{SamplerV2} primitives.
-Positive semi-definiteness was verified empirically on the
-NF-ToN-IoT training subset (minimum eigenvalue $> 0$).
+Each repetition applies $R_y(x_j)$ to qubit $q_j$, followed by a sparse
+CNOT entanglement graph realised as $CX(i,j)\cdot R_z(x_i x_j, j)\cdot
+CX(i,j)$ on each entangled pair. The current implementation uses two
+repetitions. All feature-to-qubit assignments and the correlation-derived
+entanglement graph are computed from source (NF-ToN-IoT) training data
+only, using the four strongest Pearson correlations among the eight
+NetFlow features: $(q_1,q_6)$ \texttt{OUT\_BYTES}$\leftrightarrow$
+\texttt{OUT\_PKTS} ($r{=}{+}0.926$), $(q_4,q_7)$
+\texttt{IN\_BYTES}$\leftrightarrow$\texttt{IN\_PKTS} ($r{=}{+}0.911$),
+$(q_6,q_7)$ \texttt{OUT\_PKTS}$\leftrightarrow$\texttt{IN\_PKTS}
+($r{=}{+}0.814$), and $(q_4,q_6)$
+\texttt{IN\_BYTES}$\leftrightarrow$\texttt{OUT\_PKTS} ($r{=}{+}0.774$).
+Figure~\ref{fig:circuit} shows the resulting circuit, rendered directly
+from the deployed feature-map implementation rather than redrawn by hand.
 
-The computational cost of kernel evaluation is $O(n^2)$ circuits
-at training time and $O(n_\text{test} \times n_\text{sv})$ at
-inference. Phase-4 timing analysis constrains feasible kernel
-subsets to $n \approx 100$--$200$ samples, motivating the
-\textit{k-means subset selection} strategy described below.
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig_feature_map_circuit.png}
+\caption{The \textit{CyberSecurityFeatureMap} circuit as implemented (two
+repetitions shown on qubits $q_0$--$q_7$). Each repetition applies
+$R_y(x_j)$ per qubit, then $CX\!\cdot\!R_z(x_ix_j)\!\cdot\!CX$ on the four
+NF-ToN-IoT-derived entangled pairs. Rendered directly from the deployed
+circuit, not redrawn.}
+\label{fig:circuit}
+\end{figure*}
 
-\subsection{Binary Detection: PegasosQSVC}
-\label{subsec:qsvc}
+The ideal fidelity kernel is
+\begin{equation}
+K(\mathbf{x},\mathbf{x}') = |\langle \phi(\mathbf{x}) | \phi(\mathbf{x}')
+\rangle|^2.
+\label{eq:kernel}
+\end{equation}
 
-We train a \textbf{PegasosQSVC}~\cite{qiskit_ml} binary
-classifier (attack vs. benign) on a $k$-means balanced subset
-of $n = 150$ training flows (75 benign, 75 attack), selected
-to maximise coverage of the feature-space manifold. The Pegasos
-algorithm~\cite{shalev2011} performs stochastic gradient updates
-on the dual SVM objective, with $\tau = 100$ steps and
-regularisation $C = 1.0$.
+\begin{proposition}[Positive semidefiniteness of the ideal fidelity
+kernel]
+For any finite set $\{\mathbf{x}_i\}_{i=1}^n$, the Gram matrix with
+$K_{ij} = |\langle\phi(\mathbf{x}_i)|\phi(\mathbf{x}_j)\rangle|^2$ is
+positive semidefinite.
+\end{proposition}
+\begin{proof}
+Let $\rho_i = |\phi(\mathbf{x}_i)\rangle\langle\phi(\mathbf{x}_i)|$. Then
+$K_{ij} = \text{Tr}(\rho_i\rho_j)$, i.e., the Hilbert--Schmidt inner
+product between vectorised density operators. Therefore, for any
+$\mathbf{a} \in \mathbb{C}^n$,
+\begin{align}
+\mathbf{a}^{\dagger} K \mathbf{a} &= \sum_{i,j} a_i^* a_j
+\text{Tr}(\rho_i\rho_j) \\
+&= \text{Tr}\left[\left(\sum_i a_i \rho_i\right)^{\dagger}
+\left(\sum_j a_j \rho_j\right)\right] \geq 0.
+\end{align}
+Hence $K \succeq 0$.
+\end{proof}
 
-A critical implementation detail: \texttt{PegasosQSVC.predict\_proba()}
-uses sigmoid calibration that is not centred at $0.5$ in label
-space $\{0, 1\}$, causing probability argmax to always predict
-the benign class. We add a \texttt{predict\_labels()} method to
-the \texttt{BaseClassifier} interface, with the
-\texttt{PegasosQSVCModel} override calling
-\texttt{self.\_model.predict()} (native SVM margin boundary)
-instead of thresholding probabilities. Soft scores
-$\hat{p}_i = \text{predict\_proba}[\cdot, 1]$ are used for
-AUROC computation; hard labels from \texttt{predict\_labels()}
-drive the cascade routing.
+Finite-shot estimates $\hat{K}$ need not remain exactly PSD. We therefore
+report, for confirmatory experiments, the minimum eigenvalue,
+negative-eigenvalue mass, and any PSD projection used before fitting
+(Table~\ref{tab:protocol_status}).
 
-\subsection{Reflexion Outer Loop}
-\label{subsec:reflexion}
+\subsection{Finite-Shot Kernel Accuracy}
 
-After each episode of $N_\text{ep} = 100$ samples, the Evaluator
-computes an \texttt{EpisodeReport} containing:
-$\{$AUROC, binary\_F1, macro\_F1, AUPR, FPR@TPR95,
-model\_used, drift\_detected$\}$.
-The SelfReflector applies four ordered heuristic rules to derive
-a \texttt{Lesson}:
+A compute--uncompute estimate of one fidelity entry can be represented as
+the mean of Bernoulli observations $Z_s \in \{0,1\}$ with expectation
+$K_{ij}$. Hoeffding's inequality gives
+\begin{equation}
+\mathbb{P}\left(|\hat{K}_{ij} - K_{ij}| \geq \epsilon\right) \leq 2
+\exp(-2S\epsilon^2),
+\label{eq:hoeffding}
+\end{equation}
+where $S$ is the number of shots.
 
+\begin{proposition}[Uniform shot requirement]
+For $M$ independently estimated kernel entries, it is sufficient to
+choose
+\begin{equation}
+S \geq \frac{1}{2\epsilon^2} \log \frac{2M}{\delta}
+\label{eq:shotbound}
+\end{equation}
+to guarantee $\max_{m \leq M} |\hat{K}_m - K_m| < \epsilon$ with
+probability at least $1-\delta$.
+\end{proposition}
+\begin{proof}
+Apply Eq.~\eqref{eq:hoeffding} to each entry and use the union bound:
+$\mathbb{P}(\exists m: |\hat{K}_m - K_m| \geq \epsilon) \leq 2M
+\exp(-2S\epsilon^2)$. Setting the right-hand side to at most $\delta$ and
+solving for $S$ yields Eq.~\eqref{eq:shotbound}.
+\end{proof}
+
+This bound does not establish quantum advantage; it quantifies a
+measurement cost that any hardware claim must report. It is particularly
+relevant because fidelity kernels may concentrate under expressive
+embeddings or noise \cite{thanasilp2024}. At the deployed setting
+($S=1024$ shots, $M \leq 150^2/2 \approx 11{,}250$ training-kernel
+entries), Eq.~\eqref{eq:shotbound} gives $\epsilon \approx 0.08$ at
+$\delta=0.05$ -- a coarse per-entry accuracy that motivates the PSD
+diagnostics above rather than a strict guarantee of ideal-kernel
+recovery.
+
+\subsection{Binary Detection with PegasosQSVC}
+
+The binary detector uses Qiskit Machine Learning's PegasosQSVC
+\cite{qiskit_ml} with a balanced $n=150$ source subset (75 benign, 75
+attack), $C=1.0$, and 100 Pegasos steps in the current prototype. The
+subset is selected by class-wise $k$-means representatives to reduce the
+$O(n^2)$ kernel cost.
+
+A critical implementation issue is \emph{score orientation}. PegasosQSVC
+internally maps the first sorted class to $+1$ and the second to $-1$;
+therefore a raw positive decision-function value is not necessarily an
+increasing attack score when labels are encoded as $\{0,1\}$. For
+AUROC/AUPRC we consequently define
+\begin{equation}
+s_{\text{atk}}(\mathbf{x}) =
+\begin{cases}
+f(\mathbf{x}), & \text{sign}(f) > 0 \text{ corresponds to attack}, \\
+-f(\mathbf{x}), & \text{sign}(f) > 0 \text{ corresponds to benign},
+\end{cases}
+\label{eq:orientation}
+\end{equation}
+where $f$ is \texttt{decision\_function}. Hard labels are always obtained
+from the classifier's native \texttt{predict} method
+(\texttt{predict\_labels()} in the codebase), never from
+\texttt{argmax(predict\_proba())}, which is not guaranteed to be centred
+at the correct decision boundary. This convention is enforced by
+construction throughout the cascade and the episode-evaluation harness
+(Section~\ref{subsec:audit_status}); probability columns are not assumed
+to be class-oriented unless verified explicitly.
+
+\subsection{Drift Monitor and Reflexive Episodic Controller}
+\label{subsec:reflexive}
+
+An episode contains $N_{\text{ep}}=100$ flows. The evaluator stores
+AUROC, binary F1, macro-F1, AUPRC, FPR@TPR95, model identity, and drift
+state. ADWIN with $\delta=0.002$ monitors binary prediction errors.
+Because those errors require labels, this detector operates under the
+supervised-feedback assumption of Section~\ref{sec:problem}.
+
+The current SelfReflector selects one of four typed interventions:
 \begin{enumerate}
-    \item \textbf{BINARY\_ONLY}: if ``multiclass'' appears in the
-    model name and macro-F1 $< \tau_\text{F1} = 0.30$, disable
-    multi-class typing and fall back to binary-only output.
-    \item \textbf{SWITCH\_SUBSET}: if AUROC $< \tau_\text{AUROC}
-    = 0.70$ and drift was detected (ADWIN fired), set
-    \texttt{subset\_reselect=True} in the policy and reset ADWIN.
-    This triggers $k$-means reselection on target-domain samples
-    and QSVC retraining at the next episode.
-    \item \textbf{SWITCH\_MODEL}: if AUROC $< \tau_\text{AUROC}$
-    and no drift, demote the currently-used model tier one step
-    in the hierarchy $[$QSVM, VQC, QAE, CLASSICAL$]$.
-    \item \textbf{REINFORCE}: if AUROC $\geq \tau_\text{AUROC}$
-    for $n_\text{consec} = 3$ consecutive episodes (including
-    the current), lock the current policy tier.
+\item \textsc{Binary-Only} if multi-class typing is unreliable;
+\item \textsc{Switch-Subset} if low binary discrimination and
+ADWIN-confirmed change co-occur;
+\item \textsc{Switch-Model} if performance is poor without confirmed
+drift;
+\item \textsc{Reinforce} after sustained acceptable performance.
 \end{enumerate}
-
-ADWIN~\cite{bifet2007} with $\delta = 0.002$ streams per-sample
-binary errors $(0/1)$ and fires when the estimated error rate
-shifts significantly. The EpisodicMemory appends each
-(report, lesson) pair as one JSON line to
-\texttt{agent\_state/episodes.jsonl} and applies the
-corresponding policy mutation in memory, persisting state across
-restarts.
-
-\textbf{Policy mutation.} Let $\pi = \{\mathcal{H}, f_\text{sub},
-f_\text{thr}\}$ denote the policy state, where $\mathcal{H}$ is
-the ordered model hierarchy, $f_\text{sub} \in \{0,1\}$ is the
-subset-reselect flag, and $f_\text{thr} \in [0,1]$ is the Stage~1
-decision threshold (default $0.5$). Each lesson type induces a
-deterministic mutation:
-\begin{itemize}
-    \item \textbf{SWITCH\_MODEL}: $\mathcal{H} \leftarrow
-    \mathcal{H}[1:]$ (demote front tier).
-    \item \textbf{SWITCH\_SUBSET}: $f_\text{sub} \leftarrow
-    \mathtt{True}$ (triggers $k$-means reselection at episode start).
-    \item \textbf{REINFORCE}: increments a consecutive-success
-    counter; locks the current tier at $n_\text{consec} = 3$.
-    \item \textbf{BINARY\_ONLY}: removes multiclass model names
-    from $\mathcal{H}$, forcing binary-only output.
-\end{itemize}
-Two further mutations are designed for the LLM-backed Reflexion
-extension (Phase~9) and evaluated in future work:
-SWITCH\_TYPE ($f_\text{type} \leftarrow \mathtt{True}$, triggering
-Stage~2 RF retraining on target-domain samples) and
-CALIBRATE\_THRESHOLD ($f_\text{thr} \leftarrow f_\text{thr} \pm
-\delta_\text{thr}$, adjusting the Stage~1 decision threshold to
-recover per-class recall).
-
-Algorithm~\ref{alg:reflexion} summarises the outer loop.
+With thresholds $\tau_{\text{AUROC}}=0.70$, $\tau_{F1}=0.30$, and
+$n_{\text{consec}}=3$, this is a deterministic finite-state policy. We do
+not claim that the thresholds or intervention policy are learned.
 
 \begin{algorithm}[t]
-\caption{Q-Armor Reflexion Outer Loop}
+\caption{Q-Armor Reflexive Episodic Control}
 \label{alg:reflexion}
 \begin{algorithmic}[1]
-\STATE Initialise policy $\pi$, EpisodicMemory $\mathcal{M}$, ADWIN
-\FOR{each episode $e = 0, 1, \ldots$}
-    \STATE Select model $m \leftarrow \text{ModelSelector}(\pi)$
-    \STATE Collect $N_\text{ep}$ flows; predict with $m$
-    \STATE $\text{report} \leftarrow \text{Evaluator}(\hat{y}, y)$
-    \STATE $\text{lesson} \leftarrow \text{SelfReflector}(\text{report}, \mathcal{M}, \pi)$
-    \STATE $\mathcal{M}.\text{record}(\text{report}, \text{lesson})$
-    \IF{lesson.action $=$ SWITCH\_SUBSET}
-        \STATE Collect $n_\text{pool}$ target-domain samples
-        \STATE Reselect kernel subset via $k$-means; retrain QSVC
-    \ENDIF
-    \STATE $\pi \leftarrow \mathcal{M}.\text{get\_policy}()$
+\STATE Initialise controller state $\pi$, episodic memory $\mathcal{M}$, and ADWIN
+\FOR{episode $e = 0, 1, \ldots$}
+\STATE Select active detector $m \leftarrow \text{ModelSelector}(\pi)$
+\STATE Process $N_{\text{ep}}$ flows and store predictions
+\STATE Obtain available labels under the feedback model
+\STATE $r_e \leftarrow \text{Evaluator}(\hat{y}, s, y)$
+\STATE $a_e \leftarrow \text{SelfReflector}(r_e, \mathcal{M}, \pi)$
+\STATE Append $(r_e, a_e, \pi)$ to $\mathcal{M}$
+\IF{$a_e = \textsc{Switch-Subset}$}
+\STATE Select representative labelled target subset
+\STATE Retrain binary PegasosQSVC
+\ELSIF{$a_e = \textsc{Switch-Model}$}
+\STATE Move to next registered detector tier
+\ENDIF
+\STATE Update and persist controller state $\pi$
 \ENDFOR
 \end{algorithmic}
 \end{algorithm}
 
 \subsection{Detect$\to$Type Cascade}
-\label{subsec:cascade}
 
-The cascade separates binary detection (quantum-friendly, cross-dataset-
-portable label space) from multi-class typing (classical RF, per-dataset
-taxonomy). For each input batch $\mathbf{X} \in \mathbb{R}^{n \times 8}$:
-
-\textbf{Stage~1 (Binary Detection):}
+Stage~1 produces a class-oriented attack score and hard binary decision:
 \begin{equation}
-    \hat{s}_i = \hat{p}(\text{attack} \mid \mathbf{x}_i), \quad
-    \hat{y}^{(1)}_i = \texttt{predict\_labels}(\mathbf{x}_i) \in \{0,1\}
-    \label{eq:stage1}
+\hat{y}_i^{(1)} = h_Q(\mathbf{x}_i), \qquad s_i = s_{\text{atk}}(\mathbf{x}_i).
+\label{eq:stage1}
 \end{equation}
-
-\textbf{Stage~2 (Attack Typing)}, applied only where
-$\hat{y}^{(1)}_i = 1$:
+Only flows routed as attacks enter Stage~2. The intended Stage~2 label
+space is
 \begin{equation}
-    \hat{y}^{(2)}_i = \arg\max_{c \in \mathcal{C}}
-    \hat{p}_\text{RF}(c \mid \mathbf{x}_i), \quad
-    \mathcal{C} = \{\text{DoS, Injection, Recon, Backdoor}\}
-    \label{eq:stage2}
+\mathcal{C}_A = \{\text{DoS}, \text{Injection}, \text{Recon},
+\text{Backdoor}\}.
+\label{eq:stage2space}
 \end{equation}
-Samples with $\hat{y}^{(1)}_i = 0$ receive label $\hat{y}^{(2)}_i
-= \text{Benign}$ without Stage~2 evaluation.
+The current implementation was trained from balanced coarse-taxonomy
+samples and reports five-class end-to-end macro-F1. For a final
+implementation, Stage~2 should be trained as an attack-only classifier
+(with an optional \emph{Unknown} class) so that benign routing remains the
+sole responsibility of Stage~1.
 
-The Stage~2 RF typer is trained on $n_\text{per\_class} = 2000$
-balanced flows from the training split's coarse taxonomy, covering
-all five classes. AUROC is computed from Stage~1 soft scores
-$\hat{s}_i$ against binary ground truth; macro-F1 is computed from
-Stage~2 typed outputs against the coarse taxonomy ground truth.
+\subsection{Target-Budget Adaptation via \textsc{Switch-Subset}}
 
-\subsection{SWITCH\_SUBSET: Cross-Domain Adaptation}
-\label{subsec:switch_subset}
+When the controller requests adaptation, the current mechanism obtains a
+balanced target pool of 300 labelled samples, applies class-wise
+$k$-means, selects $n_{\text{sub}}=150$ representatives (75 benign, 75
+attack), and retrains the binary PegasosQSVC. This preserves a fixed
+target label budget while changing the kernel geometry from source to
+target data.
 
-When ADWIN detects drift and AUROC falls below $\tau_\text{AUROC}$,
-SWITCH\_SUBSET:
+Let $B$ be the adaptation budget. A more general formulation is
+\begin{equation}
+S^* = \arg\max_{S \subseteq \mathcal{P},\, |S|\leq B}
+\left[\lambda U(S) + (1-\lambda) D(S)\right],
+\label{eq:budget}
+\end{equation}
+where $U(S)$ measures predictive uncertainty or representational utility
+and $D(S)$ measures diversity. The present $k$-means method approximates
+the diversity term. Equation~\eqref{eq:budget} motivates future
+comparisons with random, stratified, $k$-center, uncertainty, and hybrid
+acquisition strategies.
+
+\subsection{Computational Cost}
+
+For $n$ training samples, a dense fidelity Gram matrix requires
+$n(n+1)/2 = O(n^2)$ distinct symmetric entries. Test-time kernel
+evaluation requires $O(n_{\text{test}}n_{\text{ref}})$ overlaps, where
+$n_{\text{ref}}$ is the number of retained reference/support samples. The
+quantum-side cost is therefore
+\begin{equation}
+C_Q \propto S\left[M_{\text{train}} + M_{\text{infer}}\right],
+\label{eq:cost}
+\end{equation}
+with $S$ shots per circuit. This cost motivates using the quantum
+component for small-batch representation/adaptation rather than claiming
+real-time per-packet quantum inference.
+
+\subsection{LLM-Gated Reflexive Decision Function}
+\label{subsec:llm_pilot}
+
+Section~\ref{subsec:reflexive}'s SelfReflector is stateless in its
+reasoning: it cannot explain \emph{why} a lesson was warranted beyond
+citing the threshold crossed, and it cannot reason qualitatively over
+multiple past episodes at once. We piloted an alternative reflector,
+\texttt{LLMReflexionAgent}, exposing the identical
+\texttt{reflect(report, memory, policy)} interface, structured as a
+four-stage pipeline:
 \begin{enumerate}
-    \item Collects a pool of $n_\text{pool} = 300$ target-domain
-    samples (150 benign, 150 attack) from the target-domain
-    training split.
-    \item Applies $k$-means clustering to select a representative
-    subset of $n_\text{sub} = 150$ samples (75 per class) that
-    cover the target-domain feature manifold.
-    \item Retrains PegasosQSVC on the new subset with
-    $\tau = 100$ Pegasos steps.
+\item \textbf{Retrieval.} A TF-IDF \texttt{SemanticMemory} store indexes
+every past episode's structured summary and verbal justification; no
+external embedding model is required. The top-$k$ ($k{=}3$) most similar
+past episodes are retrieved as context.
+\item \textbf{Diagnosis.} A language-model call (Llama-3.3-70B
+\cite{llama3} via a low-latency inference service) receives the current
+episode report, the policy state, and the retrieved context, and returns
+a structured diagnosis: root cause, severity, key signals, and whether
+cross-domain shift is implicated.
+\item \textbf{Planning.} A second call selects exactly one action from a
+six-item tool library -- the four rules of
+Section~\ref{subsec:reflexive} plus two new mutations,
+\textsc{Switch-Type} (triggers Stage~2 retraining on target-domain
+samples) and \textsc{Calibrate-Threshold} (adjusts the Stage~1 decision
+threshold) -- each with a natural-language precondition, together with
+parameters and a stated rationale.
+\item \textbf{Verification.} A \emph{deterministic} Verifier checks the
+proposal against four hand-coded safety constraints before any policy
+mutation is applied: (i)~\textsc{Reinforce} is rejected if AUROC is below
+floor; (ii)~\textsc{Switch-Model} is rejected at the bottom of the
+hierarchy; (iii)~\textsc{Calibrate-Threshold} is rejected if the
+resulting threshold would leave $[0.10,0.90]$; (iv)~\textsc{Switch-Type}
+is rejected while Stage~1 AUROC remains below floor. On rejection, the
+agent falls back to the heuristic SelfReflector.
 \end{enumerate}
 
-This retrains Stage~1 on target-domain geometry with minimal
-data (150 samples), leaving Stage~2 unchanged. The mechanism is
-deliberately lightweight: the $k$-means selection completes in
-$< 0.5$\,s and PegasosQSVC retraining takes $\approx 85$\,s,
-making it feasible within an operational episode cycle.
+This design is deliberately \emph{not} a reinforcement-learning
+extension: no parameters are updated from reward signals, no policy
+gradient is computed, and the language model's output is only ever
+applied to the persistent controller state after passing the same
+deterministic gate that governs the rule-based reflector. It is more
+precisely described as an \emph{inference-time, language-reasoning
+decision function under deterministic supervision} -- a third category
+distinct both from the fixed-rule controller of
+Section~\ref{subsec:reflexive} and from the learned contextual-bandit
+extension discussed in Section~\ref{subsec:policy_learning}. Results are
+reported in Section~\ref{subsec:llm_results}.
 
 % ============================================================
-\section{Experimental Results}
+\section{Proposed Methodology}
+\label{sec:proposed}
+% ============================================================
+
+\subsection{Prototype Protocol}
+
+The reported prototype used the dataset splits in Table~\ref{tab:datasets}.
+The validation study sampled 500 balanced flows per condition and the
+final reported held-out study sampled 1,000 balanced flows per condition.
+Because separate experiments draw from the same dataset-level test
+partitions, we use the term \emph{held-out evaluation subset}, not
+\emph{sealed test set}. A genuinely sealed confirmatory set must be
+reserved before feature-map design, threshold selection, controller
+tuning, or drift simulation. The current metrics are AUROC, binary F1,
+macro-F1, AUPRC, and FPR@TPR95. For natural-prevalence evaluation we
+additionally require precision, MCC, balanced accuracy, TPR at fixed low
+FPR, calibration error, and alerts per 10,000 flows -- none of which are
+yet computed (Table~\ref{tab:protocol_status}).
+
+\subsection{Score-Audit Protocol}
+\label{subsec:audit_status}
+
+Before archival submission, every AUROC/AUPRC result must be regenerated
+using Eq.~\eqref{eq:orientation}. The required test suite verifies: (1)~the
+mapping from external labels to PegasosQSVC's internal $\pm1$ labels;
+(2)~consistency between \texttt{predict} and the sign of
+\texttt{decision\_function}; (3)~that increasing $s_{\text{atk}}$
+corresponds to the attack class; (4)~that AUROC computed from the
+oriented margin agrees with a manually constructed toy example. This
+audit is necessary because an inverted score preserves hard-label
+accuracy but reverses ranking metrics. Item~(2) is now enforced
+structurally: every reported result in this paper, including the
+episode-evaluation harness of Section~\ref{subsec:reflexive}, computes
+hard predictions via the native \texttt{predict\_labels()} margin
+decision rather than \texttt{argmax(predict\_proba())} -- a discrepancy
+we discovered while regenerating Table~\ref{tab:episodes}, where the
+uncorrected path produced a hard prediction of ``attack'' for every
+sample in an episode regardless of the underlying AUROC. Items~(1),~(3),
+and~(4) remain open and are listed in
+Table~\ref{tab:protocol_status}.
+
+\subsection{Confirmatory Protocol}
+\label{subsec:confirmatory}
+
+The final study should repeat each principal condition over at least 10
+independent seeds and report mean, standard deviation, and 95\% bootstrap
+confidence intervals. Quantum and classical adaptation methods must
+receive the same target-label budget and the same validation opportunity.
+Required classical baselines include linear SVM, RBF-SVM, Random Forest,
+and gradient-boosted trees. Required target budgets are
+\begin{equation}
+B \in \{0, 25, 50, 100, 150, 300\}.
+\label{eq:budgets}
+\end{equation}
+For each $B$, compare source-only, target-adapted classical, and
+target-adapted quantum models. Without this equal-budget design, no
+quantum superiority conclusion is valid.
+
+The confirmatory study should also evaluate natural class prevalence
+rather than only 50/50 balanced samples and, where possible, use
+temporal/capture-aware splits to reduce flow-level leakage. Additional
+datasets such as NF-BoT-IoT and NF-CSE-CIC-IDS2018 should be included to
+avoid conclusions based on a single source$\to$target pair. For
+quantum-specific analysis, report kernel-target alignment, eigenvalue
+spectrum, effective rank, within/between-class similarity, and
+classical--quantum geometric difference \cite{huang2021}. Evaluate
+finite-shot settings $S \in \{128, 256, 512, 1024, 4096\}$ and at least
+one realistic hardware-noise model. A real-QPU experiment should report
+backend, calibration timestamp, transpiled depth, two-qubit gate count,
+shots, queue-independent execution time, and kernel error relative to
+ideal simulation. Finally, evaluate abrupt, gradual, and recurring domain
+shifts; recurring A$\to$B$\to$A streams are especially important because
+they test whether episodic memory provides measurable benefit beyond a
+memoryless trigger. A poisoning study should contaminate the adaptation
+pool at controlled rates and measure whether the persistent controller
+amplifies malicious adaptation.
+
+\subsection{Validation Protocol Status}
+\label{subsec:protocol_status}
+
+Table~\ref{tab:protocol_status} reports, item by item, which parts of the
+score-audit and confirmatory protocols above are satisfied by the present
+study. We report this table so that a reader can determine precisely
+which conclusions in Sections~\ref{sec:results}--\ref{sec:discussion} are
+supported by completed work versus scoped as required future work.
+
+\begin{table*}[t]
+\centering
+\caption{Validation protocol status. \ding{51}\ complete,
+$\sim$ partial, \ding{55}\ open.}
+\label{tab:protocol_status}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}p{9.5cm}p{5cm}@{}}
+\toprule
+\textbf{Requirement} & \textbf{Status} \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{Score-audit protocol (Sec.~\ref{subsec:audit_status})}} \\
+Hard decisions via native margin, not argmax(proba) & \ding{51} \\
+Label $\to$ internal $\pm1$ mapping verified & $\sim$ \\
+\texttt{predict} vs.\ sign(\texttt{decision\_function}) test & \ding{55} \\
+Manual toy-example AUROC agreement check & \ding{55} \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{Confirmatory protocol (Sec.~\ref{subsec:confirmatory})}} \\
+Multi-seed repetition (10+ seeds, bootstrap CI) & \ding{55} \\
+Equal-budget classical baselines (linear SVM, RBF-SVM, RF, GBT) & $\sim$ (RF only) \\
+Budget sweep $B\in\{0,25,50,100,150,300\}$ & $\sim$ ($B{=}150$ only) \\
+Natural class-prevalence evaluation & \ding{55} \\
+Temporal / capture-aware splits & \ding{55} \\
+Additional source$\to$target pairs & \ding{55} \\
+Kernel-target alignment / effective rank & \ding{55} \\
+Finite-shot sweep $S\in\{128,\dots,4096\}$ & \ding{55} \\
+Real-QPU characterisation & \ding{55} (simulator pilot only, Sec.~\ref{subsec:finiteshot}) \\
+Recurring A$\to$B$\to$A drift study & \ding{55} \\
+Adaptation-pool poisoning study & \ding{55} \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{LLM-gated pilot (Sec.~\ref{subsec:llm_pilot})}} \\
+Deterministic safety verifier implemented & \ding{51} \\
+CALIBRATE-THRESHOLD wired into prediction path & \ding{55} \\
+SWITCH-TYPE exercised end-to-end & \ding{55} \\
+Multi-seed reflector comparison & \ding{55} \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ============================================================
+\section{Results and Evaluation}
 \label{sec:results}
 % ============================================================
 
-\subsection{Experimental Protocol}
-\label{subsec:protocol}
+\subsection{Episodic Cross-Domain Simulation}
+\label{subsec:episode_results}
 
-All models use the same 80/20 stratified split with
-\texttt{random\_state}~$= 42$. Validation experiments (E8a) use
-a balanced subsample of 500 flows per condition (250 benign,
-250 attack). The final evaluation (E8c) uses 1,000 flows per
-condition (500 benign, 500 attack) drawn from the SEALED test
-splits, which were untouched during all development. Metrics
-reported: AUROC (Area Under ROC Curve), binary F1, macro-averaged
-F1 (Stage~2 typing), AUPR (Area Under Precision-Recall Curve),
-and FPR@TPR95 (false-positive rate at 95\% true-positive rate).
-
-\subsection{Reflexion Loop Simulation}
-\label{subsec:reflexion_results}
-
-Table~\ref{tab:reflexion} reports the 10-episode Reflexion
-simulation on the NF-ToN-IoT/NF-UNSW-NB15 cross-dataset
-drift stream. Episodes 0--4 (Block~A) use NF-ToN-IoT test
-flows; episodes 5--9 (Block~B) switch to NF-UNSW-NB15 test
-flows, introducing a real distributional shift.
+Table~\ref{tab:episodes} reports the current 10-episode prototype trace,
+regenerated under the score-orientation fix of
+Section~\ref{subsec:audit_status}. Episodes 0--4 use NF-ToN-IoT and
+episodes 5--9 switch to NF-UNSW-NB15. The experiment demonstrates
+autonomous execution of the rule set, but should not be interpreted as
+learned policy optimisation.
 
 \begin{table}[t]
 \centering
-\caption{Q-Armor Reflexion outer loop — 10-episode simulation.
-Block~A: within NF-ToN-IoT. Block~B: cross to NF-UNSW-NB15.
-Drift column: ADWIN fired during the episode.}
-\label{tab:reflexion}
+\caption{Current 10-episode reflexive-control trace. ``Drift'' denotes
+ADWIN firing on the supervised error stream. F1 is reported for
+completeness but is not diagnostic here -- see discussion below.}
+\label{tab:episodes}
 \renewcommand{\arraystretch}{1.05}
-\begin{tabular}{@{}cclccll@{}}
+\begin{tabular}{@{}cclccl@{}}
 \toprule
-\textbf{Ep} & \textbf{Blk} & \textbf{Model} & \textbf{AUROC}
-            & \textbf{F1} & \textbf{Drift} & \textbf{Lesson} \\
+\textbf{Ep} & \textbf{Blk} & \textbf{Model} & \textbf{AUROC} &
+\textbf{Drift} & \textbf{Action} \\
 \midrule
-0 & A & QSVC & 0.974 & 0.781 & No  & ---             \\
-1 & A & QSVC & 0.987 & 0.775 & No  & ---             \\
-2 & A & QSVC & 0.980 & 0.840 & No  & REINFORCE       \\
-3 & A & QSVC & 0.980 & 0.800 & No  & REINFORCE       \\
-4 & A & QSVC & 0.949 & 0.769 & No  & REINFORCE       \\
-5 & B & QSVC & 0.674 & 0.658 & No  & SWITCH\_MODEL   \\
-6 & B & QSVC & 0.580 & 0.662 & Yes & SWITCH\_SUBSET  \\
-7 & B & QSVC & 0.671 & 0.649 & No  & SWITCH\_MODEL   \\
-8 & B & QSVC & 0.540 & 0.649 & No  & SWITCH\_MODEL   \\
-9 & B & RF   & 0.660 & 0.472 & No  & SWITCH\_MODEL   \\
+0 & A & QSVC & 0.959 & No  & --- \\
+1 & A & QSVC & 0.990 & No  & --- \\
+2 & A & QSVC & 0.983 & No  & \textsc{Reinforce} \\
+3 & A & QSVC & 0.989 & No  & \textsc{Reinforce} \\
+4 & A & QSVC & 0.944 & No  & \textsc{Reinforce} \\
+5 & B & QSVC & 0.695 & No  & \textsc{Switch-Model} \\
+6 & B & QSVC & 0.603 & No  & \textsc{Switch-Model} \\
+7 & B & QSVC & 0.719 & No  & --- \\
+8 & B & QSVC & 0.573 & No  & \textsc{Switch-Model} \\
+9 & B & RF   & 0.660 & No  & \textsc{Switch-Model} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Within-domain (Block~A), QSVC achieves mean AUROC~$= 0.974$
-with no drift detected across 500 within-domain flows.
-REINFORCE fires at episodes 2, 3, and 4, locking the QSVM tier.
-The distributional shift at episode 5 (NF-ToN-IoT 80.4\% attack
-$\to$ NF-UNSW-NB15 4.5\% attack) drops AUROC to 0.674, below
-the floor $\tau_\text{AUROC} = 0.70$. SWITCH\_MODEL fires,
-demoting QSVM in the hierarchy. At episode 6, ADWIN accumulates
-sufficient error mass to fire; the combination of low AUROC and
-confirmed drift triggers \textbf{SWITCH\_SUBSET}. The Reflexion
-loop correctly distinguishes the ``drift'' scenario (retraining
-needed) from the ``wrong model'' scenario (model switch), without
-human intervention.
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/fig_episode_trace.png}
+\caption{Episode-level AUROC trajectory for the trace in
+Table~\ref{tab:episodes}. Markers denote the lesson fired at that episode;
+the dashed line is $\tau_{\text{AUROC}}=0.70$.}
+\label{fig:episodetrace}
+\end{figure*}
 
-\subsection{Cascade Validation: E8a}
+The source-domain block is stable and the first target-domain episodes
+show a sharp loss of discrimination (Figure~\ref{fig:episodetrace}).
+\textsc{Switch-Model} fires correctly whenever AUROC falls below floor and
+ADWIN has not confirmed drift, walking the model hierarchy from the
+quantum tier down to the classical fallback and back once the classical
+tier itself under-performs (episode~9). ADWIN did \emph{not} confirm
+drift within this particular 500-flow observation window, so
+\textsc{Switch-Subset} was not exercised in this specific trace. We
+report this plainly rather than adjust the simulation to reproduce a
+drift-triggered narrative: drift confirmation is intentionally
+conservative, and a short cross-domain window is not guaranteed to
+accumulate sufficient sequential evidence. The controller's central
+claimed capability -- correctly distinguishing ``wrong model'' from
+``wrong distribution'' -- is therefore validated by the \emph{rule's
+gating logic} (Sections~\ref{subsec:reflexive} and
+\ref{subsec:llm_results}, where an independent run of the identical rule
+set does confirm drift at episode~5) rather than by this single trace
+alone; \textsc{Switch-Subset}'s remedial effect is established directly
+by deliberately triggering it in Sections~\ref{subsec:e8a}
+and~\ref{subsec:e8c}.
+
+The F1 column is included for completeness but is not informative for
+the QSVC episodes: it is constant at $0.667$ regardless of AUROC, the
+exact value produced when a binary classifier predicts the positive
+(attack) class for every sample in a balanced episode
+(precision${}=0.5$, recall${}=1.0$). This holds under both
+\texttt{argmax(predict\_proba())} and the native SVM margin decision,
+confirming it is a property of PegasosQSVC's decision boundary at
+$n{=}150$ rather than a probability-calibration artefact: the model's
+\emph{continuous} score ranking remains strong while its \emph{default}
+hard decision boundary is poorly positioned relative to the episode's
+class balance -- the same phenomenon documented for the Backdoor class in
+Section~\ref{subsec:e8c}, manifesting here as over- rather than
+under-prediction of the attack class. We report AUROC as the primary
+Stage~1 metric throughout this paper precisely because it is
+threshold-independent and unaffected by this instability;
+\textsc{Calibrate-Threshold} (Section~\ref{subsec:llm_pilot}) is the
+mechanism designed to address it, though not yet wired into the
+prediction path (Table~\ref{tab:protocol_status}).
+
+\subsection{Balanced Validation Subset}
 \label{subsec:e8a}
 
-Table~\ref{tab:cascade_val} reports validation subset results
-(500 flows per condition) for four experimental conditions.
+Table~\ref{tab:validation} reports the balanced validation experiment
+($n{=}500$ per condition). The source-trained quantum detector degrades
+under target transfer, and \textsc{Switch-Subset} substantially recovers
+binary discrimination. The RF fallback is not an equal-budget adaptation
+baseline and therefore cannot support a quantum-advantage claim.
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
-\caption{Cascade validation results (E8a, $n{=}500$ per condition,
-validation subset). S1: Stage~1 QSVC binary detection.
-S2: Stage~2 RF attack typing. C3 retrains Stage~1 via
-SWITCH\_SUBSET on 150 NF-UNSW-NB15 samples.}
-\label{tab:cascade_val}
+\caption{Current balanced validation results ($n=500$ per condition).}
+\label{tab:validation}
 \renewcommand{\arraystretch}{1.1}
 \begin{tabular}{@{}lcccc@{}}
 \toprule
 \textbf{Condition} & \textbf{S1 AUROC} & \textbf{S1 F1}
                    & \textbf{S2 macro-F1} & \textbf{FPR@95} \\
 \midrule
-C1 Within (QSVC)       & 0.952 & 0.938 & 0.628 & 0.124 \\
-C2 Cross, no retrain   & 0.623 & 0.658 & 0.189 & 0.996 \\
-C3 Cross, SWITCH\_SUBSET & \textbf{0.840} & 0.667 & 0.178 & \textbf{0.472} \\
-C4 Cross, RF fallback  & 0.599 & 0.415 & 0.191 & 0.972 \\
+C1 Within (QSVC)         & 0.954 & 0.942 & 0.705 & 0.124 \\
+C2 Cross, no adaptation  & 0.631 & 0.677 & 0.186 & 0.996 \\
+C3 Cross, \textsc{Switch-Subset} & \textbf{0.912} & 0.855 & 0.199 & \textbf{0.168} \\
+C4 Cross, RF fallback    & 0.599 & 0.415 & 0.191 & 0.972 \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
 
-C1 demonstrates strong within-domain performance: Stage~1
-AUROC~$= 0.952$ with Stage~2 macro-F1~$= 0.628$.
-Cross-domain without retraining (C2) collapses Stage~1 AUROC
-to $0.623$ and FPR@95 to $0.996$ — the quantum kernel trained
-on IoT-attack-heavy traffic (80.4\% attack) flags nearly all
-enterprise-benign-heavy UNSW traffic (4.5\% attack) as attack
-at high recall. SWITCH\_SUBSET (C3) recovers AUROC to $0.840$
-($+0.217$ over C2) and FPR@95 to $0.472$ ($-0.524$) using
-only 150 target-domain samples. Classical RF fallback (C4)
-underperforms SWITCH\_SUBSET by $0.241$ AUROC, confirming that
-quantum kernel adaptation on target-domain data is superior to
-defaulting to a classical model.
+The native source/target attack ratios (80.4\% versus 4.5\%) describe the
+corpora but cannot explain the balanced-subset AUROC difference directly,
+because both training subsets and the reported evaluation subsets were
+balanced. The observed collapse must instead be attributed to changed
+feature/class-conditional geometry and other cross-domain effects. C3
+recovers AUROC to $0.912$ ($+0.282$ over C2) and FPR@95 to $0.168$
+($-0.828$) using only 150 target-domain samples; the RF fallback (C4)
+underperforms C3 by $0.313$ AUROC on the same cross-domain data.
 
-\subsection{AerSimulator QPU Validation: E8b}
-\label{subsec:e8b}
+\subsection{Finite-Shot Simulator Pilot}
+\label{subsec:finiteshot}
 
-To validate the circuit architecture on near-term hardware, we
-trained PegasosQSVC with $n_\text{train} = 20$ (10 benign,
-10 attack) and evaluated on $n_\text{test} = 10$ (5 benign,
-5 attack) using the Qiskit \texttt{AerSimulator}
-(ideal, noiseless). The resulting $10 \times 20 = 200$ kernel
-circuits at 1024 shots per circuit completed in 30.5\,s
-(training) and 3.9\,s (inference), yielding AUROC~$= 0.800$.
-This demonstrates the architecture is viable on current IBM
-Quantum systems (the free tier provides access to 127-qubit
-Eagle and 156-qubit Heron devices). Real-hardware noise
-characterisation is deferred to future work.
+The prototype trained on 20 flows and evaluated 10 flows using an ideal
+AerSimulator with 1024 shots per kernel circuit, producing 200
+test--train overlap circuits and a reported AUROC of $0.800$. Training and
+inference took $30.5\,\text{s}$ and $3.9\,\text{s}$, respectively. This is
+a finite-shot simulator pilot, not QPU validation and not evidence of
+robustness to hardware noise. Its scientific role is to verify that the
+circuit path can be executed under shot sampling.
 
-\subsection{Sealed Test Set Evaluation: E8c}
+\subsection{Held-Out Evaluation}
 \label{subsec:e8c}
 
-Table~\ref{tab:final} reports the final sealed test set results
-($n = 1{,}000$ per condition, never accessed during development).
-Per-class typing F1 for the within-domain condition (T1) is
-reported in Table~\ref{tab:perclass}.
+Table~\ref{tab:heldout} reports the 1,000-flow balanced held-out results
+and Figure~\ref{fig:headline} visualises the headline AUROC and FPR@95
+figures. Binary transfer degrades markedly, while target-subset
+retraining recovers $0.307$ AUROC and $0.398$ binary F1$^*$ in the
+reported run ($^*$driven largely by the change in class balance of hard
+predictions between T2 and T3 rather than a proportional F1 gain -- see
+Section~\ref{subsec:episode_results} on decision-boundary instability).
+Stage~2 typing does not recover.
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
-\caption{Final sealed test set results (E8c, $n{=}1{,}000$
-per condition). T3 applies SWITCH\_SUBSET retraining on 150
-NF-UNSW-NB15 training samples. SWITCH\_SUBSET gain reported
-relative to T2.}
-\label{tab:final}
+\caption{Current held-out results ($n=1{,}000$ balanced flows per
+condition).}
+\label{tab:heldout}
 \renewcommand{\arraystretch}{1.1}
-\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lcccc@{}}
 \toprule
 \textbf{Condition} & \textbf{S1 AUROC} & \textbf{S1 F1}
                    & \textbf{S2 macro-F1} & \textbf{FPR@95} \\
 \midrule
-T1 Within (QSVC)          & \textbf{0.973} & 0.895 & 0.496          & 0.120 \\
-T2 Cross, no retrain      & 0.606          & 0.440 & 0.176          & 0.974 \\
-T3 Cross, SWITCH\_SUBSET  & \textbf{0.913} & 0.398 & 0.158          & 0.198 \\
+T1 Within (QSVC)              & 0.973 & 0.895 & 0.496 & 0.120 \\
+T2 Cross, no adaptation       & 0.606 & 0.440 & 0.176 & 0.974 \\
+T3 Cross, \textsc{Switch-Subset} & \textbf{0.913} & 0.398 & 0.158 & \textbf{0.198} \\
 \midrule
-\textit{SS gain (T3 vs T2)} & $+0.306$ & $-0.042$ & $-0.018$ & $-0.776$ \\
+T3--T2 & $+0.307$ & $-0.042$ & $-0.018$ & $-0.776$ \\
 \bottomrule
-\end{tabular}%
-}
-\end{table}
+\end{tabular}
+\end{table*}
 
-\begin{table}[t]
+\begin{figure*}[t]
 \centering
-\caption{Per-class typing F1 on sealed test set — T1 (within
-NF-ToN-IoT, Stage~2 RF typer). Stage~2 trained on NF-ToN-IoT
-train split, $n{=}2{,}000$ per class.}
+\includegraphics[width=0.85\linewidth]{figures/fig_headline_results.png}
+\caption{Sealed-condition Stage-1 AUROC and FPR@TPR95 for the held-out
+evaluation (Table~\ref{tab:heldout}).}
+\label{fig:headline}
+\end{figure*}
+
+\subsection{Per-Class Typing}
+\label{subsec:perclass}
+
+Table~\ref{tab:perclass} and Figure~\ref{fig:perclass} report per-class
+end-to-end F1. Within-domain typing is strong for Benign and Injection
+but weak for Recon; Backdoor collapses to $0.000$ within-domain. This is
+a direct, concrete instance of the decision-boundary instability
+discussed in Section~\ref{subsec:episode_results}: the corrected
+entanglement pairs assign Backdoor flows a systematically low Stage-1
+attack score, so most Backdoor flows are classified as benign before ever
+reaching Stage~2 -- a threshold-placement failure, not a Stage~2 typing
+failure. Under cross-domain transfer, attack-type F1 collapses across all
+four attack categories. This is a central result rather than a minor
+limitation: Q-ARMOR currently adapts binary detection, not the complete
+Detect$\to$Type pipeline.
+
+\begin{table*}[t]
+\centering
+\caption{Current per-class end-to-end F1.}
 \label{tab:perclass}
 \renewcommand{\arraystretch}{1.1}
-\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lccccc@{}}
 \toprule
-\textbf{Condition} & \textbf{Benign} & \textbf{DoS}
-                   & \textbf{Injection} & \textbf{Recon}
-                   & \textbf{Backdoor} \\
+\textbf{Condition} & \textbf{Benign} & \textbf{DoS} & \textbf{Injection}
+                   & \textbf{Recon} & \textbf{Backdoor} \\
 \midrule
-T1 (within, QSVC)   & 0.949 & 0.590 & 0.830 & 0.112 & 0.000 \\
-T3 (cross, retrained) & 0.694 & 0.000 & 0.046 & 0.000 & 0.049 \\
+T1 Within            & 0.949 & 0.590 & 0.830 & 0.112 & 0.000 \\
+T3 Cross + S1 adapt  & 0.694 & 0.000 & 0.046 & 0.000 & 0.049 \\
 \bottomrule
-\end{tabular}%
-}
-\end{table}
+\end{tabular}
+\end{table*}
 
-T1 achieves Stage~1 AUROC~$= 0.973$ and F1~$= 0.895$
-on the sealed within-domain test. For reference, a classical
-SVM-RBF trained on the same 8-feature set in the same evaluation
-framework achieved AUROC~$= 0.742$ in the cross-dataset Phase~6
-baseline — the quantum kernel outperforms it under an equivalent
-150-sample training budget.
-Per-class Stage~2 typing is strong for Injection ($0.830$) and
-DoS ($0.590$), but Backdoor drops to F1~$= 0.000$ because Stage~1
-assigns Backdoor flows a low attack score under the corrected
-entanglement pairs, preventing them from reaching Stage~2; this is
-a threshold-sensitivity issue (AUROC remains $0.973$) that
-CALIBRATE\_THRESHOLD is designed to address.
-Recon is weak (F1~$= 0.112$) due to data scarcity in the
-NF-ToN-IoT coarse taxonomy.
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/fig_perclass_typing.png}
+\caption{Per-class end-to-end F1, within-domain (T1) versus cross-domain
+after Stage-1-only adaptation (T3). Stage-2 typing does not transfer.}
+\label{fig:perclass}
+\end{figure*}
 
-T3 (SWITCH\_SUBSET retrained) recovers Stage~1 AUROC from
-$0.606$ to $0.913$ ($+0.306$) and FPR@95 from $0.974$ to
-$0.198$ after retraining on 150 target-domain samples. This
-represents a substantially stronger cross-domain recovery than
-the no-retrain baseline. Stage~2 macro-F1 remains near $0.158$
-because the RF typer is trained solely on NF-ToN-IoT and does not
-adapt to the UNSW-NB15 attack distribution. Cross-domain
-typing requires Stage~2 to also retrain on labelled
-target-domain samples, which is identified as the primary
-remaining limitation.
+\subsection{LLM-Gated Reflexive Decision Function: Pilot Comparison}
+\label{subsec:llm_results}
+
+We ran the identical 10-episode simulation of
+Section~\ref{subsec:episode_results} (same fixed QSVC and RF checkpoints,
+same episode sampling) under three reflector configurations: the
+\textbf{LLM Agent} of Section~\ref{subsec:llm_pilot}, the
+\textbf{Rule-based} heuristic SelfReflector, and an \textbf{ADWIN-only}
+ablation that fires \textsc{Switch-Subset} whenever ADWIN detects drift
+and takes no other action. Table~\ref{tab:llm} and
+Figure~\ref{fig:llmcompare} summarise the outcome. We flag this as a
+\emph{single-run pilot} (Table~\ref{tab:protocol_status}); the deltas
+below should not be read as a demonstrated policy-quality difference
+without seed repetition.
+
+\begin{table*}[t]
+\centering
+\caption{Reflector comparison, 10 episodes, mean AUROC. ``All'' averages
+every episode; ``Cross'' averages Block~B only.}
+\label{tab:llm}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}lccl@{}}
+\toprule
+\textbf{Reflector} & \textbf{AUROC (all)} & \textbf{AUROC (cross)} &
+\textbf{Actions fired} \\
+\midrule
+LLM Agent   & 0.815 & 0.653 & \textsc{Calibrate-Threshold}$\times8$, \textsc{Switch-Model}$\times2$ \\
+Rule-based  & 0.806 & 0.636 & \textsc{Reinforce}$\times3$, \textsc{Switch-Subset}$\times1$, \textsc{Switch-Model}$\times4$ \\
+ADWIN-only  & 0.815 & 0.653 & \textsc{Switch-Subset}$\times1$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/fig_phase9_comparison.png}
+\caption{Episode AUROC under the three reflector configurations. The
+star marks episode~5, where ADWIN confirms drift and the Rule-based and
+ADWIN-only reflectors fire \textsc{Switch-Subset} -- in contrast to the
+independent run of Table~\ref{tab:episodes}, underscoring that drift
+confirmation depends on the precise per-sample error sequence.}
+\label{fig:llmcompare}
+\end{figure*}
+
+Three observations, reported with the caveats they warrant. First, in
+every episode where FPR@95 was elevated despite acceptable AUROC, the
+Diagnoser correctly identified poor decision-boundary placement and the
+Planner selected \textsc{Calibrate-Threshold} -- precisely the
+threshold-versus-ranking distinction of
+Section~\ref{subsec:episode_results}. However, the current evaluation
+harness computes hard predictions independently of the policy's decision
+threshold, so \textsc{Calibrate-Threshold}'s selection here demonstrates
+correct \emph{diagnosis} but not yet a measured \emph{remedial effect}:
+the LLM Agent's and ADWIN-only's per-episode AUROC values are identical,
+because the action altered no measured outcome in this harness. Second,
+the LLM Agent's more conservative exploration -- preferring
+\textsc{Calibrate-Threshold} over \textsc{Switch-Model} when both
+conditions were technically satisfiable -- resulted in fewer model
+demotions and a higher episode-9 AUROC ($0.744$ vs.\ $0.660$ for the
+Rule-based reflector, which had already fallen back to Random Forest).
+This is a single realisation of a stochastic system, not evidence of
+better reasoning in general. Third, \textsc{Switch-Type} was never
+triggered: its precondition (Stage-2 macro-F1 collapsing under
+cross-domain deployment) is not observable in this binary-only episode
+harness, which does not track Stage-2 typing metrics -- an open item in
+Table~\ref{tab:protocol_status}.
 
 % ============================================================
-\section{Discussion}
+\section{Analysis and Discussion}
 \label{sec:discussion}
 % ============================================================
 
-\subsection{Reflexion vs. Rule-Based Adaptation}
+\subsection{What the Current Evidence Establishes}
 
-The critical distinction from prior adaptive IDS approaches is
-the \textit{episodic memory and policy persistence}: the agent
-does not simply react to each drift event in isolation, but
-accumulates lessons across episodes and builds a policy that
-reflects the history of interventions. In our 10-episode
-simulation, the Reflexion loop correctly fired SWITCH\_SUBSET
-(requiring both low AUROC \textit{and} confirmed drift) only
-once, while SWITCH\_MODEL fired four times for the lower-severity
-case of degraded performance without confirmed drift. This
-mirrors the Reflexion principle~\cite{shinn2023}: the agent
-learns to distinguish ``wrong model'' from ``wrong distribution''
-from experience, not just from the current sample.
+The present experiments establish three narrow points. First, an 8-qubit
+fidelity kernel trained on a small representative source subset can
+produce useful within-domain binary discrimination in the reported run.
+Second, a substantial source$\to$target degradation occurs between the
+two NetFlow corpora. Third, replacing the source kernel subset with 150
+representative labelled target flows recovers part of the lost binary
+performance. These observations motivate a budgeted adaptation study. The
+LLM-gated pilot of Section~\ref{subsec:llm_results} adds a fourth,
+narrower point: an inference-time language-reasoning decision function,
+gated by a deterministic verifier, can reproduce the rule-based
+controller's core triage behaviour while additionally surfacing a
+threshold-placement failure mode the rule-based reflector has no
+mechanism to diagnose.
 
-\subsection{Quantum Contribution}
+The evidence does not yet establish quantum advantage, superior sample
+efficiency relative to tuned classical kernels, unsupervised drift
+detection, learned policy improvement (by either reflector variant),
+general multi-domain robustness, or real-QPU viability. These conclusions
+require the confirmatory protocol of Section~\ref{subsec:confirmatory}.
 
-The quantum fidelity kernel contributes through the
-\textit{feature-space expressivity} of the 8-qubit entangled
-circuit, not through raw prediction accuracy. Within-domain,
-QSVC achieves AUROC~$= 0.973$ while training on only 150
-samples; for intra-framework comparison, a classical SVM-RBF
-baseline trained under the same 8-feature schema reached
-AUROC~$= 0.742$ in Phase~6. This comparison is not fully
-controlled (different dataset splits and training sets), and a
-rigorous ablation of the quantum kernel against an RBF kernel
-at an identical 150-sample budget on the same sealed splits is
-deferred to future work.
+\subsection{Quantum Contribution and Required Geometry Diagnostics}
 
-Cross-domain, SWITCH\_SUBSET on 150 target-domain samples recovers
-AUROC by~$+0.306$ (from $0.606$ to $0.913$), whereas the
-classical RF fallback (C4) achieves AUROC~$= 0.599$ without
-retraining. The quantum kernel's entanglement structure —
-encoding the four strongest byte/packet correlations in the
-NF-ToN-IoT distribution — may enable compact re-fitting of the
-decision boundary from a minimal labelled pool, though isolating
-this effect from the benefit of any target-domain retraining
-requires the ablation noted above.
+The scientific value of the quantum component should be assessed through
+its induced geometry, not through rhetoric about high-dimensional Hilbert
+spaces. For a Gram matrix $K$ and binary label kernel $Y = \mathbf{y}
+\mathbf{y}^{\top}$, centred kernel-target alignment can be measured by
+\begin{equation}
+\text{KTA}(K,Y) = \frac{\langle K_c, Y_c \rangle_F}{\|K_c\|_F \|Y_c\|_F}.
+\label{eq:kta}
+\end{equation}
+If $\lambda_1,\dots,\lambda_n$ are Gram eigenvalues, an effective-rank
+diagnostic is
+\begin{equation}
+r_{\text{eff}}(K) = \frac{\left(\sum_i \lambda_i\right)^2}{\sum_i
+\lambda_i^2}.
+\label{eq:reff}
+\end{equation}
+Together with within/between-class similarity and the classical--quantum
+geometric difference proposed by Huang et al.\ \cite{huang2021}, these
+quantities can show whether the chosen feature map creates task-relevant
+structure or merely an expensive approximation of a classical kernel.
+Neither quantity has yet been computed for the deployed kernel
+(Table~\ref{tab:protocol_status}).
 
-\subsection{Limitations}
+\subsection{Why Cross-Domain Typing Fails}
 
-Three structural limitations constrain the current system.
-First, \textit{quantum inference speed}: PegasosQSVC requires
-$\approx 3$\,s per sample (kernel circuit per test point vs.\
-all 150 support vectors), making real-time per-packet
-classification infeasible; QSVC is suited for periodic
-batch evaluation and kernel adaptation, with RF providing
-real-time throughput. Second, \textit{cross-domain Stage~2
-typing}: macro-F1 remains at $0.158$ cross-domain because
-Stage~2 RF is not retrained in SWITCH\_SUBSET — labelled
-target-domain flows for each coarse class are required.
-Third, \textit{real QPU noise}: the E8b AerSimulator result
-(AUROC~$= 0.800$, $n_\text{train}{=}20$, noiseless ideal) has high
-variance at this tiny sample size; real-hardware gate errors
-($\approx 0.1$--$1\%$ per 2-qubit gate on current IBM devices)
-will further reduce performance.
+Stage~1 uses a portable binary label space, whereas Stage~2 relies on a
+hand-built coarse taxonomy whose semantics differ between datasets.
+Consequently, adapting only Stage~1 cannot repair a target-domain type
+classifier trained on source attack mechanisms. A stronger design should
+use an attack-only Stage~2, introduce an \emph{Unknown} class, and
+allocate a separate target-label budget to type adaptation. Open-set
+evaluation is preferable to forcing every target attack into a
+source-defined category. \textsc{Switch-Type} (Section~\ref{subsec:llm_pilot})
+is designed for exactly this purpose but remains untriggered in the
+current pilot.
+
+\subsection{Reflexive Control versus Policy Learning}
+\label{subsec:policy_learning}
+
+Persistent memory changes what information is available to the
+controller, but the current action mapping is fixed in both reflector
+variants. Thus the prototype implements autonomous stateful control, not
+learning. This holds equally for the rule-based SelfReflector, whose
+mapping is a fixed threshold table, and for the LLM-gated reflector of
+Section~\ref{subsec:llm_pilot}, whose per-episode output depends on the
+language model's reasoning over the same evaluator signals but updates no
+parameters from outcomes -- the two variants differ in \emph{how} a
+decision is reached, not in \emph{whether} the decision rule adapts from
+experience. A genuine learned extension can represent the episode state
+as
+\begin{equation}
+\mathbf{z}_t = [d_t, u_t, c_t, \Delta_t, b_t, \ell_t, m_t],
+\label{eq:state}
+\end{equation}
+where $d_t$ is drift evidence, $u_t$ uncertainty, $c_t$ calibration,
+$\Delta_t$ performance trend, $b_t$ remaining budget, $\ell_t$
+latency/circuit cost, and $m_t$ memory features. A contextual bandit
+could then choose among keep, recalibrate, reselect, retrain, classical
+fallback, and abstain actions while optimising Eq.~\eqref{eq:objective}.
+Such a model would justify the phrase \emph{policy learning}; the current
+manuscript -- for both reflector variants -- deliberately does not claim
+it.
+
+\textbf{Operational Interpretation.} The $\approx 3$\,s per-sample
+quantum inference latency precludes line-rate deployment. A practical
+hybrid architecture therefore uses classical models for real-time
+detection and selectively invokes quantum-kernel analysis for batch
+assessment, uncertain samples, or adaptation, enabling explicit control
+of quantum-computation cost.
+
+\textbf{Limitations.} Current limitations include: (i)~single-run results
+requiring score verification and multi-seed statistics; (ii)~evaluation
+on only one source$\to$target transfer; (iii)~dependence on label
+feedback for ADWIN and episodic metrics; (iv)~non-adaptive Stage~2
+typing; (v)~small-scale simulator-only quantum evaluation; (vi)~the
+LLM-gated pilot's \textsc{Calibrate-Threshold} action is not yet wired
+into the prediction path, so its measured effect is currently null by
+construction, not by evidence of ineffectiveness; and (vii)~the LLM
+pilot itself is a single run with no seed repetition. Equal-budget
+classical adaptation and poisoning robustness also remain untested.
 
 % ============================================================
 \section{Conclusion}
 \label{sec:conclusion}
 % ============================================================
 
-We presented Q-Armor, an agentic quantum kernel framework combining
-an 8-qubit fidelity kernel with a Reflexion-inspired outer loop
-for adaptive policy learning under concept drift. On sealed
-test splits of NF-ToN-IoT and NF-UNSW-NB15, the Detect$\to$Type
-cascade achieves Stage~1 AUROC~$= 0.973$ within-domain.
-SWITCH\_SUBSET retraining on 150 target-domain samples recovers
-cross-domain AUROC from $0.606$ to $0.913$ ($+0.306$) and
-FPR@95 from $0.974$ to $0.198$, while the Reflexion loop
-autonomously fires this mechanism after confirmed drift without
-human intervention.
-
-Future work will (i) evaluate \textbf{SWITCH\_TYPE} — a
-policy mutation that triggers Stage~2 RF retraining on
-target-domain labelled flows when macro-F1 falls critically
-low despite healthy Stage~1 AUROC, targeting cross-domain
-macro-F1~$\geq 0.50$; (ii) evaluate \textbf{CALIBRATE\_THRESHOLD}
-— a per-class threshold-adjustment mechanism that recovers
-suppressed per-class recall (e.g., Backdoor~F1~$= 0.000$)
-caused by the Stage~1 decision boundary assigning low attack
-scores to certain attack subtypes, distinct from kernel failure;
-(iii) characterise real IBM QPU noise degradation on the
-validated circuit; (iv) build a live packet-to-flow extraction
-pipeline connecting raw network traffic to the cascade;
-(v) explore VQC and QAE as alternative Stage~1 models; and
-(vi) perform a controlled ablation of the quantum fidelity
-kernel against a Gaussian RBF kernel at an identical 150-sample
-training budget to quantify the quantum representation advantage.
+We presented a substantially revised Q-ARMOR as a reflexive quantum-kernel
+IDS for cross-domain adaptation. It combines fidelity-kernel binary
+detection, classical attack typing, episodic state, and explicit
+adaptation actions, executable under either a deterministic rule-based
+reflector or a piloted LLM-gated alternative with an identical
+deterministic safety gate. Current results show strong within-domain
+performance, severe cross-domain degradation, and partial recovery using
+150 labelled target flows, while attack typing remains non-transferable
+and simulator results do not support hardware claims. The LLM-gated pilot
+additionally surfaces a threshold-placement failure mode invisible to the
+rule-based reflector, though its remedial mechanism is not yet wired into
+measured outcomes. Q-ARMOR is positioned as a study of adaptive
+quantum-kernel representation under network domain shift, not as evidence
+of quantum advantage or learned autonomous optimisation, by either
+reflector variant. Table~\ref{tab:protocol_status} lists, without
+exception, the confirmatory work required before any stronger claim would
+be warranted.
 
 % ============================================================
 \section*{Acknowledgment}
 
-The authors thank Dr.\ Shiva Raj Pokhrel for supervision and
-guidance throughout this research, and the Deakin University
-HPC team for computational support.
+The authors thank Dr.\ Shiva Raj Pokhrel for supervision and guidance
+throughout this research, and the Deakin University HPC team for
+computational support.
 
 % ============================================================
 \begin{thebibliography}{99}
@@ -801,43 +1262,57 @@ HPC team for computational support.
 \bibitem{shinn2023}
 N.~Shinn, F.~Cassano, A.~Gopinath, K.~Narasimhan, and S.~Yao,
 ``Reflexion: Language agents with verbal reinforcement learning,''
-in \textit{Advances in Neural Information Processing Systems
-(NeurIPS)}, vol.~36, 2023.
+\textit{Advances in Neural Information Processing Systems}, vol.~36, 2023.
 
 \bibitem{havlicek2019}
-V.~Havl\'{i}\v{c}ek, A.~D.~C\'{o}rcoles, K.~Temme,
-A.~W.~Harrow, A.~Kandala, J.~M.~Gambetta, and J.~M.~Chow,
+V.~Havl\'{i}\v{c}ek, A.~D.~C\'{o}rcoles, K.~Temme, A.~W.~Harrow,
+A.~Kandala, J.~M.~Gambetta, and J.~M.~Chow,
 ``Supervised learning with quantum-enhanced feature spaces,''
 \textit{Nature}, vol.~567, pp.~209--212, 2019.
+
+\bibitem{schuld2019}
+M.~Schuld and N.~Killoran,
+``Quantum machine learning in feature Hilbert spaces,''
+\textit{Physical Review Letters}, vol.~122, no.~4, p.~040504, 2019.
+
+\bibitem{huang2021}
+H.-Y.~Huang, M.~Broughton, M.~Mohseni, R.~Babbush, S.~Boixo, H.~Neven,
+and J.~R.~McClean,
+``Power of data in quantum machine learning,''
+\textit{Nature Communications}, vol.~12, Art.\ no.~2631, 2021.
+
+\bibitem{cerezo2022}
+M.~Cerezo, G.~Verdon, H.-Y.~Huang, L.~Cincio, and P.~J.~Coles,
+``Challenges and opportunities in quantum machine learning,''
+\textit{Nature Computational Science}, vol.~2, pp.~567--576, 2022.
+
+\bibitem{thanasilp2024}
+S.~Thanasilp, S.~Wang, M.~Cerezo, and Z.~Holmes,
+``Exponential concentration in quantum kernel methods,''
+\textit{Nature Communications}, vol.~15, Art.\ no.~5200, 2024.
+
+\bibitem{bendavid2010}
+S.~Ben-David, J.~Blitzer, K.~Crammer, A.~Kulesza, F.~Pereira, and
+J.~W.~Vaughan,
+``A theory of learning from different domains,''
+\textit{Machine Learning}, vol.~79, pp.~151--175, 2010.
 
 \bibitem{bifet2007}
 A.~Bifet and R.~Gavald\`{a},
 ``Learning from time-changing data with adaptive windowing,''
-in \textit{Proc.\ 7th SIAM Int.\ Conf.\ Data Mining (SDM)},
-2007, pp.~443--448.
+in \textit{Proc.\ 7th SIAM Int.\ Conf.\ Data Mining (SDM)}, 2007,
+pp.~443--448.
+
+\bibitem{liao2013}
+H.-J.~Liao, C.-H.~R.~Lin, Y.-C.~Lin, and K.-Y.~Tung,
+``Intrusion detection system: A comprehensive review,''
+\textit{Journal of Network and Computer Applications},
+vol.~36, no.~1, pp.~16--24, 2013.
 
 \bibitem{breiman2001}
 L.~Breiman,
 ``Random forests,''
 \textit{Machine Learning}, vol.~45, no.~1, pp.~5--32, 2001.
-
-\bibitem{scikit2011}
-F.~Pedregosa \textit{et al.},
-``Scikit-learn: Machine learning in Python,''
-\textit{Journal of Machine Learning Research},
-vol.~12, pp.~2825--2830, 2011.
-
-\bibitem{shalev2011}
-S.~Shalev-Shwartz, Y.~Singer, N.~Srebro, and A.~Cotter,
-``Pegasos: Primal estimated sub-gradient solver for SVM,''
-\textit{Mathematical Programming}, vol.~127, no.~1,
-pp.~3--30, 2011.
-
-\bibitem{biamonte2017}
-J.~Biamonte, P.~Wittek, N.~Pancotti, P.~Rebentrost,
-N.~Wiebe, and S.~Lloyd,
-``Quantum machine learning,''
-\textit{Nature}, vol.~549, pp.~195--202, 2017.
 
 \bibitem{sarhan2021}
 M.~Sarhan, S.~Layeghy, and M.~Portmann,
@@ -852,24 +1327,6 @@ N.~Moustafa,
 intrusion detection systems,''
 \textit{IEEE Access}, vol.~9, pp.~94--106, 2021.
 
-\bibitem{ciciot2023}
-E.~C.~P.~Neto \textit{et al.},
-``CICIoT2023: A real-time dataset and benchmark for large-scale
-attacks in IoT environment,''
-\textit{Sensors}, vol.~23, no.~13, p.~5941, 2023.
-
-\bibitem{liao2013}
-H.-J.~Liao, C.-H.~R.~Lin, Y.-C.~Lin, and K.-Y.~Tung,
-``Intrusion detection system: A comprehensive review,''
-\textit{Journal of Network and Computer Applications},
-vol.~36, no.~1, pp.~16--24, 2013.
-
-\bibitem{lu2018}
-J.~Lu, A.~Liu, F.~Dong, F.~Gu, J.~Gama, and G.~Zhang,
-``Learning under concept drift: A review,''
-\textit{IEEE Transactions on Knowledge and Data Engineering},
-vol.~31, no.~12, pp.~2346--2363, 2019.
-
 \bibitem{kalinin2022}
 M.~Kalinin and V.~Krundyshev,
 ``Security intrusion detection using quantum machine learning
@@ -879,9 +1336,14 @@ vol.~19, pp.~125--136, 2023.
 
 \bibitem{qiskit_ml}
 IBM Qiskit Machine Learning Development Team,
-\textit{Qiskit Machine Learning},
-open-source software, 2024.
-[Online]. Available: \url{https://github.com/qiskit-community/qiskit-machine-learning}
+\textit{Qiskit Machine Learning}, version~0.9 documentation and
+open-source software, 2025--2026. [Online]. Available:
+\url{https://qiskit-community.github.io/qiskit-machine-learning/}
+
+\bibitem{llama3}
+A.~Grattafiori \textit{et al.},
+``The Llama 3 herd of models,''
+arXiv preprint arXiv:2407.21783, 2024.
 
 \end{thebibliography}
 
