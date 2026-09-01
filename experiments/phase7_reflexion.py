@@ -110,10 +110,19 @@ def _run_episode(
     y_ep: np.ndarray,
     planner: PlanningModule,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
-    """Run one episode: get predictions, stream errors through ADWIN."""
+    """Run one episode: get predictions, stream errors through ADWIN.
+
+    Uses predict_labels() rather than argmax(predict_proba()) for the hard
+    decision — PegasosQSVC's predict_proba() uses sigmoid calibration that is
+    not centred at 0.5 (see D-P8.1 in docs/PHASE8_RESULTS.md), so argmax alone
+    can degenerate to predicting a single class for every sample regardless of
+    the underlying AUROC. predict_labels() applies the native SVM margin
+    boundary for QSVC and is a no-op passthrough (argmax) for calibrated
+    models such as RandomForest.
+    """
     proba        = model.predict_proba(X_ep)
     y_scores     = proba[:, 1]
-    y_pred       = proba.argmax(axis=1)
+    y_pred       = model.predict_labels(X_ep)
     confidences  = proba.max(axis=1)
     drift_seen   = False
     for i in range(len(y_ep)):

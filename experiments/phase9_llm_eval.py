@@ -94,9 +94,14 @@ def _pick_model(policy, selector):
 
 
 def _run_episode(model, X_ep, y_ep, planner):
+    """Run one episode. Uses predict_labels() rather than argmax(predict_proba())
+    for the hard decision — see the matching fix and rationale in
+    experiments/phase7_reflexion.py (D-P8.1: PegasosQSVC's sigmoid calibration
+    is not centred at 0.5, so raw argmax can degenerate to a single-class
+    prediction regardless of AUROC)."""
     proba       = model.predict_proba(X_ep)
     y_scores    = proba[:, 1]
-    y_pred      = proba.argmax(axis=1)
+    y_pred      = model.predict_labels(X_ep)
     confidences = proba.max(axis=1)
     drift_seen  = False
     for i in range(len(y_ep)):
