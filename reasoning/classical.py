@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.svm import SVC, LinearSVC
 
 from agent import agent_config as config
 from reasoning.base import BaseClassifier
@@ -110,6 +110,90 @@ class SVMModel(BaseClassifier):
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Calibrated class probabilities (sigmoid/Platt calibration)."""
+        return self._model.predict_proba(X)
+
+    @property
+    def classes_(self) -> np.ndarray:
+        """Fitted class labels."""
+        return self._model.classes_
+
+
+class LinearSVMModel(BaseClassifier):
+    """Linear-kernel SVM wrapper — the required classical baseline that is
+    cheapest to train, used as the lower reference point in the equal-budget
+    quantum-vs-classical comparison (Confirmatory Protocol, Sec. V-J)."""
+
+    name = "svm_linear"
+
+    def __init__(
+        self,
+        C: float = 1.0,
+        class_weight: str | dict | None = "balanced",
+    ) -> None:
+        """Initialise the underlying sklearn LinearSVC.
+
+        Args:
+            C: Regularisation strength.
+            class_weight: ``"balanced"`` reweights rare classes without SMOTE.
+        """
+        svc = LinearSVC(
+            C=C,
+            class_weight=class_weight,
+            random_state=config.RANDOM_SEED,
+            max_iter=5000,
+        )
+        # LinearSVC has no predict_proba; sigmoid-calibrate like SVMModel.
+        self._model = CalibratedClassifierCV(svc, method="sigmoid", ensemble=False, cv=3)
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "LinearSVMModel":
+        """Train the linear SVM and calibrate its probabilities. See :meth:`BaseClassifier.fit`."""
+        self._model.fit(X, y)
+        return self
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Calibrated class probabilities (sigmoid/Platt calibration)."""
+        return self._model.predict_proba(X)
+
+    @property
+    def classes_(self) -> np.ndarray:
+        """Fitted class labels."""
+        return self._model.classes_
+
+
+class GBTModel(BaseClassifier):
+    """Gradient-boosted trees wrapper — the required classical baseline that
+    is the strongest non-kernel reference point in the equal-budget
+    quantum-vs-classical comparison (Confirmatory Protocol, Sec. V-J)."""
+
+    name = "gbt"
+
+    def __init__(
+        self,
+        n_estimators: int = 200,
+        max_depth: int = 3,
+        learning_rate: float = 0.1,
+    ) -> None:
+        """Initialise the underlying sklearn GradientBoostingClassifier.
+
+        Args:
+            n_estimators: Number of boosting stages.
+            max_depth: Max depth of each regression-tree stage.
+            learning_rate: Shrinkage applied to each stage's contribution.
+        """
+        self._model = GradientBoostingClassifier(
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            learning_rate=learning_rate,
+            random_state=config.RANDOM_SEED,
+        )
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "GBTModel":
+        """Train the ensemble. See :meth:`BaseClassifier.fit`."""
+        self._model.fit(X, y)
+        return self
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Class probabilities from the boosted ensemble."""
         return self._model.predict_proba(X)
 
     @property

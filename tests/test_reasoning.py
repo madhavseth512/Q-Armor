@@ -12,7 +12,7 @@ import pytest
 
 from agent import agent_config as config
 from reasoning.base import BaseClassifier
-from reasoning.classical import RandomForestModel, SVMModel
+from reasoning.classical import GBTModel, LinearSVMModel, RandomForestModel, SVMModel
 from reasoning.hierarchical import HierarchicalClassifier
 
 
@@ -27,7 +27,7 @@ def _toy_parents(per_class: int = 12, seed: int = 0):
     return np.vstack(Xs), np.array(ys)
 
 
-@pytest.mark.parametrize("Model", [RandomForestModel, SVMModel])
+@pytest.mark.parametrize("Model", [RandomForestModel, SVMModel, LinearSVMModel, GBTModel])
 def test_classical_contract(Model, tmp_path):
     X, y = _toy_parents()
     model = Model().fit(X, y)
