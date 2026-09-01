@@ -81,10 +81,12 @@ def _build_ibm_qsvc(token: str, n_qubits: int = 8):
         raise RuntimeError(f"IBM runtime import failed: {e}") from e
 
     print("\n  [IBM QPU] Connecting to IBM Quantum service ...")
+    # channel="ibm_quantum" was retired in IBM's 2026-03 Open Plan migration
+    # (see data/CONFIG_PROVENANCE.md); ibm_quantum_platform is the current
+    # channel and no longer takes the legacy hub/group/project instance string.
     service = QiskitRuntimeService(
-        channel="ibm_quantum",
+        channel="ibm_quantum_platform",
         token=token,
-        instance=config.IBM_INSTANCE,
     )
     backend = service.least_busy(
         operational=True, simulator=False, min_num_qubits=n_qubits
