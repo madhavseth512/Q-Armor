@@ -218,13 +218,28 @@ def main() -> None:
     path = f"{RESULTS_DIR}/phase10_confirmatory_metrics.json"
 
     def _persist():
+        # Merge with any existing file rather than overwrite -- models and
+        # budgets are often run in separate invocations (QSVC is far slower
+        # than the classical baselines, and budgets get filled in
+        # incrementally), so a fresh in-memory `results` dict here must not
+        # clobber results a prior invocation already saved for this model at
+        # other budgets, or for other models entirely.
+        existing: dict[str, dict[str, dict]] = {}
+        if os.path.exists(path):
+            with open(path) as ef:
+                existing = json.load(ef).get("results", {})
+        for m, bd in results.items():
+            merged_budgets = existing.get(m, {})
+            merged_budgets.update({str(b): v for b, v in bd.items()})
+            existing[m] = merged_budgets
+
         out = {
             "experiment": "phase10_confirmatory",
             "n_seeds": args.seeds,
             "budgets": budgets,
-            "models_completed": list(results.keys()),
+            "models_completed": list(existing.keys()),
             "source_train_n": SOURCE_TRAIN_N,
-            "results": {m: {str(b): v for b, v in bd.items()} for m, bd in results.items()},
+            "results": existing,
         }
         with open(path, "w") as f:
             json.dump(out, f, indent=2)
