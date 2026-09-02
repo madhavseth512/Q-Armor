@@ -78,6 +78,7 @@ def main() -> None:
     from qiskit import transpile
     from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as IBMSamplerV2
     from qiskit_machine_learning.kernels import FidelityQuantumKernel
+    from qiskit_machine_learning.state_fidelities import ComputeUncompute
 
     print("=" * 70)
     print("Phase 16: real-QPU characterisation")
@@ -97,7 +98,20 @@ def main() -> None:
 
     print("\nConnecting to IBM Quantum ...")
     service = QiskitRuntimeService(channel="ibm_quantum_platform", token=token)
-    backend = service.least_busy(operational=True, simulator=False, min_num_qubits=config.N_QUBITS)
+    # least_busy() no longer takes operational=/simulator= kwargs directly in
+    # qiskit-ibm-runtime 0.47 -- IBMBackend has no .operational/.simulator
+    # attributes any more (verified against the installed version before
+    # spending real QPU time). Use the documented filters= callable instead:
+    # status().operational is the current way to check backend availability,
+    # and configuration().simulator still reports whether a backend is a
+    # cloud simulator rather than real hardware.
+    def _is_real_and_operational(b) -> bool:
+        try:
+            return bool(b.status().operational) and not bool(b.configuration().simulator)
+        except Exception:
+            return False
+
+    backend = service.least_busy(min_num_qubits=config.N_QUBITS, filters=_is_real_and_operational)
     print(f"  Selected backend: {backend.name}")
 
     calibration_ts = None
@@ -119,15 +133,27 @@ def main() -> None:
     print(f"\nSubmitting {len(pairs)} kernel-pair circuits to {backend.name} "
           f"({config.IBM_SHOTS} shots each) ...")
 
-    sampler = IBMSamplerV2(backend)
-    fidelity_kernel_ibm = FidelityQuantumKernel(feature_map=fm, sampler=sampler)
+    # FidelityQuantumKernel takes fidelity=, not sampler= directly (verified
+    # against the installed qiskit-machine-learning signature before spending
+    # real QPU time -- passing sampler= would have raised a TypeError on
+    # construction). Wrap the sampler in a ComputeUncompute fidelity object,
+    # same pattern as experiments/phase15_finiteshot_sweep.py. IBMSamplerV2
+    # also has no shots= constructor arg -- default_shots must be set via
+    # options=, or config.IBM_SHOTS is silently never applied.
+    sampler = IBMSamplerV2(backend, options={"default_shots": config.IBM_SHOTS})
+    fidelity_ibm = ComputeUncompute(sampler=sampler)
+    fidelity_kernel_ibm = FidelityQuantumKernel(feature_map=fm, fidelity=fidelity_ibm)
 
+    # One batched evaluate(X) call over the whole 4x4 matrix, not one call per
+    # pair -- FidelityQuantumKernel batches the circuits it needs into a
+    # single Sampler job internally, whereas 6 separate per-pair calls would
+    # submit 6 separate jobs, each paying its own IBM queue wait. That queue
+    # time doesn't count against the QPU-time quota, but it does turn a
+    # sub-minute job into a potentially much longer wall-clock wait for no
+    # benefit -- same batching already used in phase14_kernel_alignment.py.
     t0 = time.time()
-    ibm_pair_values = []
-    job_metadata = []
-    for i, j in pairs:
-        val = float(fidelity_kernel_ibm.evaluate(np.array([X[i]]), np.array([X[j]]))[0, 0])
-        ibm_pair_values.append(val)
+    K_ibm = fidelity_kernel_ibm.evaluate(X)
+    ibm_pair_values = [float(K_ibm[i, j]) for i, j in pairs]
     wall_time = time.time() - t0
     print(f"  wall time (includes queue): {wall_time:.1f}s")
 
@@ -135,10 +161,8 @@ def main() -> None:
 
     print("\nComputing the SAME pairs on the exact/default (ideal) simulator ...")
     fidelity_kernel_exact = FidelityQuantumKernel(feature_map=fm)
-    exact_pair_values = [
-        float(fidelity_kernel_exact.evaluate(np.array([X[i]]), np.array([X[j]]))[0, 0])
-        for i, j in pairs
-    ]
+    K_exact = fidelity_kernel_exact.evaluate(X)
+    exact_pair_values = [float(K_exact[i, j]) for i, j in pairs]
 
     ibm_arr = np.array(ibm_pair_values)
     exact_arr = np.array(exact_pair_values)

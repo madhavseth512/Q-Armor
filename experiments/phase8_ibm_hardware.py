@@ -75,6 +75,7 @@ def _build_ibm_qsvc(token: str, n_qubits: int = 8):
     try:
         from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as IBMSamplerV2
         from qiskit_machine_learning.kernels import FidelityQuantumKernel
+        from qiskit_machine_learning.state_fidelities import ComputeUncompute
         from qiskit_machine_learning.algorithms import PegasosQSVC
         from perception.feature_map import CyberSecurityFeatureMap
     except ImportError as e:
@@ -88,14 +89,27 @@ def _build_ibm_qsvc(token: str, n_qubits: int = 8):
         channel="ibm_quantum_platform",
         token=token,
     )
-    backend = service.least_busy(
-        operational=True, simulator=False, min_num_qubits=n_qubits
-    )
+    # least_busy() no longer takes operational=/simulator= kwargs directly in
+    # qiskit-ibm-runtime 0.47 -- IBMBackend has no .operational/.simulator
+    # attributes any more. Use the documented filters= callable instead.
+    def _is_real_and_operational(b) -> bool:
+        try:
+            return bool(b.status().operational) and not bool(b.configuration().simulator)
+        except Exception:
+            return False
+
+    backend = service.least_busy(min_num_qubits=n_qubits, filters=_is_real_and_operational)
     print(f"  [IBM QPU] Selected backend: {backend.name}")
 
-    sampler = IBMSamplerV2(backend)
+    # FidelityQuantumKernel takes fidelity=, not sampler= (verified against
+    # the installed qiskit-machine-learning signature -- passing sampler=
+    # directly raises a TypeError on construction, before any API call).
+    # IBMSamplerV2 also needs options={"default_shots": ...} to actually
+    # apply config.IBM_SHOTS; its constructor has no shots= argument.
+    sampler = IBMSamplerV2(backend, options={"default_shots": config.IBM_SHOTS})
+    fidelity = ComputeUncompute(sampler=sampler)
     feature_map = CyberSecurityFeatureMap(n_qubits=n_qubits)
-    kernel = FidelityQuantumKernel(feature_map=feature_map, sampler=sampler)
+    kernel = FidelityQuantumKernel(feature_map=feature_map, fidelity=fidelity)
     model = PegasosQSVC(quantum_kernel=kernel, C=1.0, num_steps=config.PEGASOS_TAU)
     return model, backend.name
 
