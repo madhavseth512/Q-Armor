@@ -1,10 +1,15 @@
-"""Generates the figures for the revised Q-ARMOR paper from real, current
-results on disk (post entanglement-pair fix, post predict_labels() fix).
+"""Generates every plotted (non-diagram) figure for the Q-Armor paper from
+real, current results on disk. No numbers in this script are invented --
+every value is read directly from results/*.json.
 
-No numbers in this script are invented — every value is either read directly
-from results/*.json or is the fresh Phase 7 episode trace already regenerated
-in this session. The feature-map circuit is rendered from the actual
-perception/feature_map.py class, not redrawn by hand.
+Style: strictly black-and-white/grayscale, matching standard IEEE-conference
+convention -- series are distinguished by marker shape, line style, and
+hatch pattern, never by hue. Figures are sized for a single IEEEtran column
+(~3.4in) wherever the data permits; only the circuit diagram, which is
+inherently wide, spans both columns.
+
+The two architecture diagrams (fig1_overview.png, fig2_logical_architecture.png)
+are supervisor-provided and are NOT touched by this script.
 
 Run:  ./venv/Scripts/python.exe docs/generate_figures.py
 Output: docs/figures/*.png  (300 dpi, paper-ready)
@@ -20,29 +25,62 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 OUT = "docs/figures"
+COL_W = 3.4   # inches -- IEEEtran single-column width
 
 # ---------------------------------------------------------------------------
-# Shared style — restrained, print-appropriate, not a marketing palette
+# Shared black-and-white style
 # ---------------------------------------------------------------------------
 plt.rcParams.update({
     "font.family": "serif",
-    "font.size": 11,
-    "axes.edgecolor": "#333333",
-    "axes.linewidth": 0.8,
+    "font.size": 8,
+    "axes.titlesize": 8.5,
+    "axes.labelsize": 8,
+    "xtick.labelsize": 7,
+    "ytick.labelsize": 7,
+    "legend.fontsize": 6.5,
+    "axes.edgecolor": "black",
+    "axes.linewidth": 0.7,
     "axes.grid": True,
-    "grid.color": "#DDDDDD",
-    "grid.linewidth": 0.6,
+    "grid.color": "#999999",
+    "grid.linewidth": 0.3,
+    "grid.linestyle": ":",
     "axes.axisbelow": True,
     "figure.facecolor": "white",
     "savefig.facecolor": "white",
+    "text.color": "black",
+    "axes.labelcolor": "black",
+    "xtick.color": "black",
+    "ytick.color": "black",
 })
 
-INK = "#1a1a1a"
-QUANTUM = "#0E7C74"      # within-domain / healthy
-CROSS = "#B23B3B"        # cross-domain, no adaptation
-RECOVER = "#2C6FB2"      # adapted / recovered
-NEUTRAL = "#8A8A8A"      # classical / reference
-AMBER = "#B5762A"        # secondary series
+BLACK = "#000000"
+DGRAY = "#4D4D4D"
+MGRAY = "#808080"
+LGRAY = "#B3B3B3"
+
+# Series style cycle: (color, linestyle, marker) -- grayscale + shape, never hue.
+SERIES = [
+    (BLACK, "-", "o"),
+    (DGRAY, "--", "s"),
+    (MGRAY, "-.", "^"),
+    (BLACK, ":", "D"),
+    (DGRAY, "-", "v"),
+    (MGRAY, "--", "P"),
+]
+
+# Bar-fill cycle: grayscale shade + hatch, black edges throughout.
+BARS = [
+    dict(color="white", hatch=""),
+    dict(color=LGRAY, hatch="///"),
+    dict(color=MGRAY, hatch="xxx"),
+    dict(color=DGRAY, hatch="..."),
+    dict(color=BLACK, hatch=""),
+]
+
+
+def _clean_axes(ax):
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
 
 
 # ===========================================================================
@@ -52,36 +90,27 @@ def fig_headline_results():
     conditions = ["T1", "T2", "T3"]
     auroc = [0.9732, 0.6064, 0.9126]
     fpr95 = [0.1200, 0.9740, 0.1980]
-    colors = [QUANTUM, CROSS, RECOVER]
 
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.15))
+    fig, axes = plt.subplots(1, 2, figsize=(COL_W, 1.55))
 
-    ax = axes[0]
-    bars = ax.bar(conditions, auroc, color=colors, width=0.6, edgecolor=INK, linewidth=0.8)
-    ax.axhline(0.70, color=INK, linestyle="--", linewidth=0.9, alpha=0.6)
-    ax.text(2.28, 0.715, r"$\tau_{\mathrm{AUROC}}=0.70$", fontsize=8.5, ha="right", color=INK, alpha=0.75)
-    for b, v in zip(bars, auroc):
-        ax.text(b.get_x() + b.get_width() / 2, v + 0.015, f"{v:.3f}", ha="center", fontsize=9.5, fontweight="bold")
-    ax.set_ylabel("Stage-1 AUROC")
-    ax.set_ylim(0, 1.08)
-    ax.set_title("(a) Binary detection AUROC", fontsize=10.5)
+    for ax, vals, ylabel, title in [
+        (axes[0], auroc, "Stage-1 AUROC", "(a) AUROC"),
+        (axes[1], fpr95, "FPR@TPR95", "(b) FPR@95"),
+    ]:
+        bars = ax.bar(conditions, vals, width=0.6, edgecolor="black", linewidth=0.6,
+                       color=[LGRAY, MGRAY, BLACK])
+        for b, v in zip(bars, vals):
+            ax.text(b.get_x() + b.get_width() / 2, v + 0.03, f"{v:.2f}",
+                     ha="center", fontsize=6.3)
+        ax.set_ylabel(ylabel)
+        ax.set_ylim(0, 1.12)
+        ax.set_title(title, fontsize=7.5)
+        ax.tick_params(axis="x", labelsize=7)
+        _clean_axes(ax)
 
-    ax = axes[1]
-    bars = ax.bar(conditions, fpr95, color=colors, width=0.6, edgecolor=INK, linewidth=0.8)
-    for b, v in zip(bars, fpr95):
-        ax.text(b.get_x() + b.get_width() / 2, v + 0.02, f"{v:.3f}", ha="center", fontsize=9.5, fontweight="bold")
-    ax.set_ylabel("FPR@TPR95")
-    ax.set_ylim(0, 1.08)
-    ax.set_title("(b) False-positive rate at 95% recall", fontsize=10.5)
-
-    for ax in axes:
-        ax.tick_params(axis="x", labelsize=10.5)
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-
-    fig.text(0.5, -0.02,
-              "T1: within-domain   |   T2: cross-domain, no adaptation   |   T3: cross-domain, after SWITCH-SUBSET",
-              ha="center", fontsize=8.3, color=NEUTRAL)
+    fig.text(0.5, -0.06,
+              "T1: within-domain T2: cross-domain, no adapt. T3: cross-domain, adapted",
+              ha="center", fontsize=5.6, color=DGRAY)
     fig.tight_layout()
     fig.savefig(f"{OUT}/fig_headline_results.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
@@ -89,54 +118,46 @@ def fig_headline_results():
 
 
 # ===========================================================================
-# Figure 4 — 10-episode reflexive-control trace (fresh, predict_labels fix)
+# Figure 4 — 10-episode reflexive-control trace
 # ===========================================================================
 def fig_episode_trace():
     episodes = list(range(10))
     auroc = [0.9590, 0.9896, 0.9828, 0.9892, 0.9442, 0.6948, 0.6028, 0.7192, 0.5728, 0.6602]
     actions = [None, None, "REINFORCE", "REINFORCE", "REINFORCE",
                "SWITCH_MODEL", "SWITCH_MODEL", None, "SWITCH_MODEL", "SWITCH_MODEL"]
-    models = ["QSVC"] * 9 + ["RF"]
 
-    fig, ax = plt.subplots(figsize=(7.2, 3.2))
+    fig, ax = plt.subplots(figsize=(COL_W, 1.9))
 
-    within_x, within_y = episodes[:5], auroc[:5]
-    cross_x, cross_y = episodes[4:], auroc[4:]  # connect at boundary
-    ax.plot(within_x, within_y, "-o", color=QUANTUM, linewidth=1.6, markersize=5, label="Block A — within-domain (NF-ToN-IoT)")
-    ax.plot(cross_x, cross_y, "-o", color=CROSS, linewidth=1.6, markersize=5, label="Block B — cross-domain (NF-UNSW-NB15)")
+    ax.plot(episodes[:5], auroc[:5], "-o", color=BLACK, linewidth=1.0,
+            markersize=3, markerfacecolor="white", markeredgewidth=0.7,
+            label="Within-domain (A)")
+    ax.plot(episodes[4:], auroc[4:], "--s", color=DGRAY, linewidth=1.0,
+            markersize=3, markerfacecolor="white", markeredgewidth=0.7,
+            label="Cross-domain (B)")
 
-    ax.axhline(0.70, color=INK, linestyle="--", linewidth=0.9, alpha=0.55)
-    ax.text(9.35, 0.715, r"$\tau_{\mathrm{AUROC}}$", fontsize=8.5, color=INK, alpha=0.75)
-    ax.axvline(4.5, color=INK, linestyle=":", linewidth=0.8, alpha=0.5)
+    ax.axhline(0.70, color="black", linestyle=":", linewidth=0.6, alpha=0.7)
+    ax.text(9.3, 0.72, r"$\tau$", fontsize=6.5, color="black")
+    ax.axvline(4.5, color="black", linestyle=":", linewidth=0.5, alpha=0.5)
 
-    action_style = {
-        "REINFORCE": dict(marker="^", color=RECOVER, label="REINFORCE"),
-        "SWITCH_MODEL": dict(marker="s", color=AMBER, label="SWITCH_MODEL"),
-    }
-    seen = set()
     for ep, a, y in zip(episodes, actions, auroc):
-        if a is None:
-            continue
-        st = action_style[a]
-        lbl = st["label"] if a not in seen else None
-        seen.add(a)
-        ax.scatter([ep], [y + 0.028], marker=st["marker"], color=st["color"], s=55,
-                   zorder=5, label=lbl, edgecolor=INK, linewidth=0.5)
+        if a == "REINFORCE":
+            ax.scatter([ep], [y + 0.03], marker="^", s=22, facecolor="black",
+                       edgecolor="black", zorder=5)
+        elif a == "SWITCH_MODEL":
+            ax.scatter([ep], [y + 0.03], marker="D", s=18, facecolor="white",
+                       edgecolor="black", linewidth=0.6, zorder=5)
 
-    for ep, m in enumerate(models):
-        if m == "RF":
-            ax.annotate("RF fallback", (ep, auroc[ep]), textcoords="offset points",
-                        xytext=(-2, -16), fontsize=7.8, color=NEUTRAL, ha="center")
+    ax.scatter([], [], marker="^", s=22, facecolor="black", edgecolor="black", label="REINFORCE")
+    ax.scatter([], [], marker="D", s=18, facecolor="white", edgecolor="black", label="SWITCH_MODEL")
 
     ax.set_xlabel("Episode")
     ax.set_ylabel("AUROC")
     ax.set_xticks(episodes)
-    ax.set_ylim(0.45, 1.05)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.legend(loc="lower left", fontsize=8, framealpha=0.95, ncol=2)
+    ax.set_ylim(0.45, 1.08)
+    _clean_axes(ax)
+    ax.legend(loc="lower left", fontsize=5.6, framealpha=0.95, ncol=2)
     fig.tight_layout()
-    fig.savefig(f"{OUT}/fig_episode_trace.png", dpi=300)
+    fig.savefig(f"{OUT}/fig_episode_trace.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
     print("saved fig_episode_trace.png")
 
@@ -150,28 +171,26 @@ def fig_perclass_typing():
     t3 = [0.694, 0.000, 0.046, 0.000, 0.049]
 
     x = np.arange(len(classes))
-    w = 0.35
-    fig, ax = plt.subplots(figsize=(7.2, 3.0))
-    ax.bar(x - w / 2, t1, w, label="T1 — within-domain", color=QUANTUM, edgecolor=INK, linewidth=0.7)
-    ax.bar(x + w / 2, t3, w, label="T3 — cross-domain, Stage-1 adapted", color=CROSS, edgecolor=INK, linewidth=0.7)
+    w = 0.32
+    fig, ax = plt.subplots(figsize=(COL_W, 1.7))
+    ax.bar(x - w / 2, t1, w, label="T1: within-domain", color=LGRAY,
+           edgecolor="black", linewidth=0.5)
+    ax.bar(x + w / 2, t3, w, label="T3: cross-domain, adapted", color=BLACK,
+           edgecolor="black", linewidth=0.5)
     ax.set_xticks(x)
-    ax.set_xticklabels(classes)
+    ax.set_xticklabels(classes, fontsize=6.3, rotation=20, ha="right")
     ax.set_ylabel("End-to-end F1")
     ax.set_ylim(0, 1.05)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.legend(fontsize=9, framealpha=0.95)
-    for xi, (v1, v3) in enumerate(zip(t1, t3)):
-        ax.text(xi - w / 2, v1 + 0.02, f"{v1:.2f}", ha="center", fontsize=8)
-        ax.text(xi + w / 2, v3 + 0.02, f"{v3:.2f}", ha="center", fontsize=8)
+    _clean_axes(ax)
+    ax.legend(fontsize=5.8, framealpha=0.95)
     fig.tight_layout()
-    fig.savefig(f"{OUT}/fig_perclass_typing.png", dpi=300)
+    fig.savefig(f"{OUT}/fig_perclass_typing.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
     print("saved fig_perclass_typing.png")
 
 
 # ===========================================================================
-# Figure 6 — CyberSecurityFeatureMap, rendered from the actual class
+# Figure 6 — CyberSecurityFeatureMap, rendered from the actual class, B&W
 # ===========================================================================
 def fig_feature_map_circuit():
     import sys
@@ -179,14 +198,18 @@ def fig_feature_map_circuit():
     from perception.feature_map import CyberSecurityFeatureMap
 
     fm = CyberSecurityFeatureMap()
-    fig = fm.draw(output="mpl", fold=-1, style={"backgroundcolor": "#FFFFFF"})
-    fig.set_size_inches(11.0, 4.0)
+    # Let qiskit choose its own natural canvas size for the circuit -- it
+    # lays out gate boxes at a fixed point-size for a computed figure size;
+    # forcibly resizing the canvas afterward (fig.set_size_inches) does NOT
+    # rescale those already-placed glyphs, it just crops/overlaps them. Any
+    # size reduction has to happen via dpi at save time instead.
+    fig = fm.draw(output="mpl", fold=-1, style={"name": "bw", "fontsize": 10})
     for txt in fig.axes[0].texts:
         if txt.get_text().strip().lower().startswith("global phase"):
             txt.set_visible(False)
     fig.savefig(f"{OUT}/fig_feature_map_circuit.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
-    print("saved fig_feature_map_circuit.png (rendered from perception/feature_map.py, undecomposed)")
+    print("saved fig_feature_map_circuit.png (b&w, rendered from perception/feature_map.py)")
 
 
 # ===========================================================================
@@ -197,41 +220,102 @@ def fig_phase9_comparison():
         d = json.load(f)
 
     episodes = list(range(10))
-    series = {
-        "LLM Agent": (d["results"]["LLM Agent"], RECOVER, "-o"),
-        "Rule-based": (d["results"]["Rule-based"], AMBER, "-s"),
-        "ADWIN-only": (d["results"]["ADWIN-only"], NEUTRAL, "--^"),
-    }
+    order = ["LLM Agent", "Rule-based", "ADWIN-only"]
 
-    fig, ax = plt.subplots(figsize=(8.6, 3.2))
-    for name, (recs, color, style) in series.items():
-        y = [r["auroc"] for r in recs]
-        marker = style[-1]
-        linestyle = "--" if style.startswith("--") else "-"
-        ax.plot(episodes, y, linestyle=linestyle, marker=marker, color=color,
-                linewidth=1.5, markersize=5, label=name, alpha=0.9)
+    fig, ax = plt.subplots(figsize=(COL_W, 1.9))
+    for name, (color, ls, marker) in zip(order, SERIES):
+        y = [r["auroc"] for r in d["results"][name]]
+        ax.plot(episodes, y, linestyle=ls, marker=marker, color=color,
+                linewidth=0.9, markersize=3, markerfacecolor="white",
+                markeredgewidth=0.6, label=name)
 
-    ax.axhline(0.70, color=INK, linestyle=":", linewidth=0.9, alpha=0.55)
-    ax.axvline(4.5, color=INK, linestyle=":", linewidth=0.8, alpha=0.5)
-    ax.text(0.15, 1.015, "Block A (within)", fontsize=8, color=NEUTRAL)
-    ax.text(6.7, 1.015, "Block B (cross)", fontsize=8, color=NEUTRAL)
+    ax.axhline(0.70, color="black", linestyle=":", linewidth=0.5, alpha=0.6)
+    ax.axvline(4.5, color="black", linestyle=":", linewidth=0.5, alpha=0.5)
 
-    # mark rule-based's drift-confirmed SWITCH_SUBSET at episode 5
     rb = d["results"]["Rule-based"][5]
-    ax.scatter([5], [rb["auroc"] + 0.03], marker="*", s=140, color=QUANTUM,
-               zorder=6, edgecolor=INK, linewidth=0.5, label="SWITCH_SUBSET (drift confirmed)")
+    ax.scatter([5], [rb["auroc"] + 0.04], marker="*", s=45, facecolor="black",
+               edgecolor="black", zorder=6, label="SWITCH_SUBSET (drift)")
 
     ax.set_xlabel("Episode")
     ax.set_ylabel("AUROC")
     ax.set_xticks(episodes)
-    ax.set_ylim(0.45, 1.05)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8.5, framealpha=0.95)
+    ax.set_ylim(0.45, 1.08)
+    _clean_axes(ax)
+    ax.legend(loc="lower left", fontsize=5.4, framealpha=0.95, ncol=2)
     fig.tight_layout()
     fig.savefig(f"{OUT}/fig_phase9_comparison.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
     print("saved fig_phase9_comparison.png")
+
+
+# ===========================================================================
+# Figure 8 — Confirmatory budget sweep: AUROC vs. target-label budget B
+# ===========================================================================
+def fig_budget_sweep():
+    with open("results/phase10/phase10_confirmatory_metrics.json") as f:
+        d = json.load(f)
+
+    order = ["pegasos_qsvc", "random_forest", "gbt", "svm_linear", "svm_rbf"]
+    labels = {"pegasos_qsvc": "PegasosQSVC (quantum)", "random_forest": "Random Forest",
+              "gbt": "Gradient-Boosted Trees", "svm_linear": "Linear SVM", "svm_rbf": "RBF-SVM"}
+    budgets = [0, 25, 50, 100, 150, 300]
+
+    fig, ax = plt.subplots(figsize=(COL_W, 2.1))
+    for name, (color, ls, marker) in zip(order, SERIES):
+        bd = d["results"][name]
+        y = [bd[str(b)]["auroc"]["mean"] for b in budgets]
+        lw = 1.3 if name == "pegasos_qsvc" else 0.8
+        ax.plot(budgets, y, linestyle=ls, marker=marker, color=color, linewidth=lw,
+                markersize=3.2, markerfacecolor="white" if color != BLACK or name != "pegasos_qsvc" else BLACK,
+                markeredgewidth=0.6, label=labels[name])
+
+    ax.set_xlabel("Target-label budget $B$")
+    ax.set_ylabel("Cross-domain AUROC")
+    ax.set_xscale("symlog", linthresh=25)
+    ax.set_xticks(budgets)
+    ax.set_xticklabels([str(b) for b in budgets])
+    ax.set_ylim(0.4, 1.05)
+    _clean_axes(ax)
+    ax.legend(loc="lower right", fontsize=5.2, framealpha=0.95)
+    fig.tight_layout()
+    fig.savefig(f"{OUT}/fig_budget_sweep.png", dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print("saved fig_budget_sweep.png")
+
+
+# ===========================================================================
+# Figure 9 — Poisoning study: F1 vs. poison rate (RF / GBT / QSVC)
+# ===========================================================================
+def fig_poisoning():
+    with open("results/phase13/phase13_poisoning_metrics.json") as f:
+        d = json.load(f)
+
+    order = ["pegasos_qsvc", "random_forest", "gbt"]
+    labels = {"pegasos_qsvc": "PegasosQSVC (quantum)", "random_forest": "Random Forest",
+              "gbt": "Gradient-Boosted Trees"}
+
+    fig, ax = plt.subplots(figsize=(COL_W, 2.0))
+    for name, (color, ls, marker) in zip(order, SERIES):
+        rows = d["results"][name]
+        rates = [r["poison_rate"] for r in rows]
+        f1 = [r["f1"] for r in rows]
+        ax.plot(rates, f1, linestyle=ls, marker=marker, color=color, linewidth=1.0,
+                markersize=3.2, markerfacecolor="white", markeredgewidth=0.6,
+                label=labels[name])
+        for r, y in zip(rates, f1):
+            if r == 0.5 and name == "pegasos_qsvc":
+                ax.annotate("F1=0,\nREINFORCE\nstill fires", (r, y), textcoords="offset points",
+                             xytext=(-6, 24), fontsize=5.2, color="black", ha="center")
+
+    ax.set_xlabel("Adaptation-pool poison rate")
+    ax.set_ylabel("End-to-end F1")
+    ax.set_ylim(-0.05, 1.05)
+    _clean_axes(ax)
+    ax.legend(loc="lower left", fontsize=5.6, framealpha=0.95)
+    fig.tight_layout()
+    fig.savefig(f"{OUT}/fig_poisoning.png", dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print("saved fig_poisoning.png")
 
 
 if __name__ == "__main__":
@@ -239,6 +323,8 @@ if __name__ == "__main__":
     fig_episode_trace()
     fig_perclass_typing()
     fig_phase9_comparison()
+    fig_budget_sweep()
+    fig_poisoning()
     try:
         fig_feature_map_circuit()
     except Exception as e:

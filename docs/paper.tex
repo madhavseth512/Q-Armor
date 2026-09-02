@@ -357,6 +357,7 @@ intelligence. Therefore the present experiments evaluate
 an extension rather than a claimed capability.
 
 \subsection{Threat Model}
+\label{subsec:threat}
 
 We assume that the initial source training set is trusted, target traffic
 may differ from the source distribution, and the adaptation pool contains
@@ -726,8 +727,8 @@ reserved before feature-map design, threshold selection, controller
 tuning, or drift simulation. The current metrics are AUROC, binary F1,
 macro-F1, AUPRC, and FPR@TPR95. For natural-prevalence evaluation we
 additionally require precision, MCC, balanced accuracy, TPR at fixed low
-FPR, calibration error, and alerts per 10,000 flows -- none of which are
-yet computed (Table~\ref{tab:protocol_status}).
+FPR, calibration error, and alerts per 10,000 flows -- all now computed
+and reported in Section~\ref{subsec:naturalprev}.
 
 \subsection{Score-Audit Protocol}
 \label{subsec:audit_status}
@@ -781,38 +782,55 @@ rather than \texttt{AgentCore.process()}.
 \subsection{Confirmatory Protocol}
 \label{subsec:confirmatory}
 
-The final study should repeat each principal condition over at least 10
-independent seeds and report mean, standard deviation, and 95\% bootstrap
-confidence intervals. Quantum and classical adaptation methods must
-receive the same target-label budget and the same validation opportunity.
-Required classical baselines include linear SVM, RBF-SVM, Random Forest,
-and gradient-boosted trees. Required target budgets are
+The protocol requires repeating each principal condition over at least 10
+independent seeds and reporting mean, standard deviation, and 95\%
+bootstrap confidence intervals, with quantum and classical adaptation
+methods receiving the same target-label budget and the same validation
+opportunity, against required classical baselines (linear SVM, RBF-SVM,
+Random Forest, gradient-boosted trees) over target budgets
 \begin{equation}
 B \in \{0, 25, 50, 100, 150, 300\}.
 \label{eq:budgets}
 \end{equation}
-For each $B$, compare source-only, target-adapted classical, and
-target-adapted quantum models. Without this equal-budget design, no
-quantum superiority conclusion is valid.
+We ran exactly this comparison: 10 seeds per classical baseline, 5 per
+quantum model (Section~\ref{subsec:budgetsweep} explains the seed-count
+asymmetry), across the full budget grid. The result is direct evidence
+\emph{against} a quantum-superiority reading of this paper's own
+$T2\to T3$ recovery -- at the paper's own adaptation budget ($B{=}150$),
+equal-budget classical baselines reach higher AUROC with lower
+seed-to-seed variance (Table~\ref{tab:budgetsweep}). Without this
+equal-budget design, no quantum-superiority conclusion would have been
+valid; with it, none is supported.
 
-The confirmatory study should also evaluate natural class prevalence
-rather than only 50/50 balanced samples and, where possible, use
-temporal/capture-aware splits to reduce flow-level leakage. Additional
-datasets such as NF-BoT-IoT and NF-CSE-CIC-IDS2018 should be included to
-avoid conclusions based on a single source$\to$target pair. For
-quantum-specific analysis, report kernel-target alignment, eigenvalue
-spectrum, effective rank, within/between-class similarity, and
-classical--quantum geometric difference \cite{huang2021}. Evaluate
-finite-shot settings $S \in \{128, 256, 512, 1024, 4096\}$ and at least
-one realistic hardware-noise model. A real-QPU experiment should report
-backend, calibration timestamp, transpiled depth, two-qubit gate count,
-shots, queue-independent execution time, and kernel error relative to
-ideal simulation. Finally, evaluate abrupt, gradual, and recurring domain
-shifts; recurring A$\to$B$\to$A streams are especially important because
-they test whether episodic memory provides measurable benefit beyond a
-memoryless trigger. A poisoning study should contaminate the adaptation
-pool at controlled rates and measure whether the persistent controller
-amplifies malicious adaptation.
+We also ran the remaining quantum-specific and robustness items this
+subsection previously only specified: natural class-prevalence evaluation
+in place of 50/50 balanced sampling (Section~\ref{subsec:naturalprev});
+kernel-target alignment, eigenvalue spectrum, effective rank,
+within/between-class similarity, and the classical--quantum geometric
+difference of Huang et al.\ \cite{huang2021}
+(Section~\ref{subsec:kerneldiag}); a genuine finite-shot sweep
+$S \in \{128, 256, 512, 1024, 4096\}$, replacing an earlier number
+that we discovered was not actually shot-sampled
+(Section~\ref{subsec:finiteshot}); a minimal real-QPU characterisation
+reporting backend, calibration timestamp, transpiled depth, two-qubit
+gate count, shots, and kernel error relative to ideal simulation
+(Section~\ref{subsec:kerneldiag}); a recurring $A\to B\to A$ domain-shift
+stream testing whether episodic memory provides measurable benefit beyond
+a memoryless trigger (Section~\ref{subsec:recurpoison}); and an
+adaptation-pool poisoning study measuring whether the persistent
+controller amplifies malicious adaptation (Section~\ref{subsec:recurpoison}).
+
+Three items remain open, honestly so. Temporal/capture-aware splits are
+not merely undone but currently \emph{infeasible}: we inspected both
+datasets' raw schemas directly and neither NF-ToN-IoT nor NF-UNSW-NB15
+carries a timestamp or capture-order field, so no temporal split can be
+constructed from the data as distributed without acquiring a different
+dataset. Additional source$\to$target pairs (NF-BoT-IoT,
+NF-CSE-CIC-IDS2018) are not yet incorporated. At least one realistic
+hardware-noise model beyond the live QPU run of
+Section~\ref{subsec:kerneldiag} remains untested. These, together with
+the LLM-pilot sub-items of Table~\ref{tab:protocol_status}, are the
+protocol's remaining scope.
 
 \subsection{Validation Protocol Status}
 \label{subsec:protocol_status}
@@ -840,17 +858,17 @@ Label $\to$ internal $\pm1$ mapping verified & \ding{51} \\
 Manual toy-example AUROC agreement check & \ding{51} \\
 \midrule
 \multicolumn{2}{@{}l}{\textit{Confirmatory protocol (Sec.~\ref{subsec:confirmatory})}} \\
-Multi-seed repetition (10+ seeds, bootstrap CI) & \ding{55} \\
-Equal-budget classical baselines (linear SVM, RBF-SVM, RF, GBT) & $\sim$ (RF only) \\
-Budget sweep $B\in\{0,25,50,100,150,300\}$ & $\sim$ ($B{=}150$ only) \\
-Natural class-prevalence evaluation & \ding{55} \\
-Temporal / capture-aware splits & \ding{55} \\
+Multi-seed repetition (10+ seeds, bootstrap CI) & $\sim$ (10 classical; 5 quantum, Sec.~\ref{subsec:budgetsweep}) \\
+Equal-budget classical baselines (linear SVM, RBF-SVM, RF, GBT) & \ding{51} \\
+Budget sweep $B\in\{0,25,50,100,150,300\}$ & \ding{51} (Sec.~\ref{subsec:budgetsweep}) \\
+Natural class-prevalence evaluation & \ding{51} (Sec.~\ref{subsec:naturalprev}) \\
+Temporal / capture-aware splits & \ding{55} (infeasible: no timestamp field in either dataset) \\
 Additional source$\to$target pairs & \ding{55} \\
-Kernel-target alignment / effective rank & \ding{55} \\
-Finite-shot sweep $S\in\{128,\dots,4096\}$ & \ding{55} \\
-Real-QPU characterisation & \ding{55} (simulator pilot only, Sec.~\ref{subsec:finiteshot}) \\
-Recurring A$\to$B$\to$A drift study & \ding{55} \\
-Adaptation-pool poisoning study & \ding{55} \\
+Kernel-target alignment / effective rank & \ding{51} (Sec.~\ref{subsec:kerneldiag}) \\
+Finite-shot sweep $S\in\{128,\dots,4096\}$ & \ding{51} (Sec.~\ref{subsec:finiteshot}) \\
+Real-QPU characterisation & \ding{51} (minimal 6-pair run, \texttt{ibm\_fez}; Sec.~\ref{subsec:kerneldiag}) \\
+Recurring A$\to$B$\to$A drift study & \ding{51} (Sec.~\ref{subsec:recurpoison}) \\
+Adaptation-pool poisoning study & \ding{51} (Sec.~\ref{subsec:recurpoison}) \\
 \midrule
 \multicolumn{2}{@{}l}{\textit{LLM-gated pilot (Sec.~\ref{subsec:llm_pilot})}} \\
 Deterministic safety verifier implemented & \ding{51} \\
@@ -902,14 +920,14 @@ completeness but is not diagnostic here -- see discussion below.}
 \end{tabular}
 \end{table}
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\includegraphics[width=0.85\linewidth]{figures/fig_episode_trace.png}
+\includegraphics[width=\linewidth]{figures/fig_episode_trace.png}
 \caption{Episode-level AUROC trajectory for the trace in
 Table~\ref{tab:episodes}. Markers denote the lesson fired at that episode;
-the dashed line is $\tau_{\text{AUROC}}=0.70$.}
+the dotted line is $\tau_{\text{AUROC}}=0.70$.}
 \label{fig:episodetrace}
-\end{figure*}
+\end{figure}
 
 The source-domain block is stable and the first target-domain episodes
 show a sharp loss of discrimination (Figure~\ref{fig:episodetrace}).
@@ -990,13 +1008,30 @@ underperforms C3 by $0.313$ AUROC on the same cross-domain data.
 \subsection{Finite-Shot Simulator Pilot}
 \label{subsec:finiteshot}
 
-The prototype trained on 20 flows and evaluated 10 flows using an ideal
-AerSimulator with 1024 shots per kernel circuit, producing 200
+The prototype trained on 20 flows and evaluated 10 flows, producing 200
 test--train overlap circuits and a reported AUROC of $0.800$. Training and
-inference took $30.5\,\text{s}$ and $3.9\,\text{s}$, respectively. This is
-a finite-shot simulator pilot, not QPU validation and not evidence of
-robustness to hardware noise. Its scientific role is to verify that the
-circuit path can be executed under shot sampling.
+inference took $30.5\,\text{s}$ and $3.9\,\text{s}$, respectively. This
+run used \texttt{FidelityQuantumKernel}'s default fidelity object, which
+we verified is an \emph{exact}, zero-shot-noise statevector computation --
+calling \texttt{.evaluate()} twice on identical inputs returns
+bit-identical values -- so despite its earlier label, it is not itself a
+finite-shot result.
+
+We therefore ran a genuine finite-shot sweep on the same 20/10 split,
+wiring an explicit \texttt{qiskit\_aer} sampler
+(\texttt{SamplerV2(default\_shots=}$S$\texttt{)}) into a
+\texttt{ComputeUncompute} fidelity object for
+$S \in \{128, 256, 512, 1024, 4096\}$, against the exact kernel above as
+the $S\!\to\!\infty$ reference. All five finite-shot settings gave
+AUROC $=0.840$, higher than the exact-kernel value; at $n_{\text{test}}=10$
+a single flipped prediction moves AUROC by $0.10$, so this reflects
+small-sample variance from the specific 10 held-out flows rather than
+shot noise improving discrimination, and should not be read as a
+performance trend across $S$. Training time grew from $10.0\,\text{s}$
+($S{=}128$) to $30.4\,\text{s}$ ($S{=}4096$), consistent with per-shot
+sampling cost. This sweep, not the earlier single number, is the
+finite-shot pilot required by Table~\ref{tab:protocol_status}; it is
+still not QPU validation or evidence of robustness to hardware noise.
 
 \subsection{Held-Out Evaluation}
 \label{subsec:e8c}
@@ -1030,13 +1065,13 @@ T3--T2 & $+0.307$ & $-0.042$ & $-0.018$ & $-0.776$ \\
 \end{tabular}
 \end{table*}
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\includegraphics[width=0.85\linewidth]{figures/fig_headline_results.png}
+\includegraphics[width=\linewidth]{figures/fig_headline_results.png}
 \caption{Sealed-condition Stage-1 AUROC and FPR@TPR95 for the held-out
 evaluation (Table~\ref{tab:heldout}).}
 \label{fig:headline}
-\end{figure*}
+\end{figure}
 
 \subsection{Per-Class Typing}
 \label{subsec:perclass}
@@ -1070,13 +1105,13 @@ T3 Cross + S1 adapt  & 0.694 & 0.000 & 0.046 & 0.000 & 0.049 \\
 \end{tabular}
 \end{table*}
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\includegraphics[width=0.85\linewidth]{figures/fig_perclass_typing.png}
+\includegraphics[width=\linewidth]{figures/fig_perclass_typing.png}
 \caption{Per-class end-to-end F1, within-domain (T1) versus cross-domain
 after Stage-1-only adaptation (T3). Stage-2 typing does not transfer.}
 \label{fig:perclass}
-\end{figure*}
+\end{figure}
 
 \subsection{LLM-Gated Reflexive Decision Function: Pilot Comparison}
 \label{subsec:llm_results}
@@ -1111,16 +1146,16 @@ ADWIN-only  & 0.815 & 0.653 & \textsc{Switch-Subset}$\times1$ \\
 \end{tabular}
 \end{table*}
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\includegraphics[width=0.85\linewidth]{figures/fig_phase9_comparison.png}
+\includegraphics[width=\linewidth]{figures/fig_phase9_comparison.png}
 \caption{Episode AUROC under the three reflector configurations. The
 star marks episode~5, where ADWIN confirms drift and the Rule-based and
 ADWIN-only reflectors fire \textsc{Switch-Subset} -- in contrast to the
 independent run of Table~\ref{tab:episodes}, underscoring that drift
 confirmation depends on the precise per-sample error sequence.}
 \label{fig:llmcompare}
-\end{figure*}
+\end{figure}
 
 Three observations, reported with the caveats they warrant. First, in
 every episode where FPR@95 was elevated despite acceptable AUROC, the
@@ -1145,6 +1180,227 @@ cross-domain deployment) is not observable in this binary-only episode
 harness, which does not track Stage-2 typing metrics -- an open item in
 Table~\ref{tab:protocol_status}.
 
+\subsection{Confirmatory Protocol: Equal-Budget Sweep}
+\label{subsec:budgetsweep}
+
+Section~\ref{subsec:confirmatory} states that no quantum-superiority
+conclusion is valid without comparing quantum and classical adaptation
+under the same target-label budget. We ran that comparison: PegasosQSVC
+against linear SVM, RBF-SVM, Random Forest, and gradient-boosted trees
+(GBT), each retrained from scratch on a target-domain budget
+$B \in \{0,25,50,100,150,300\}$ (Eq.~\eqref{eq:budgets}) and evaluated on
+the same shared 300-sample cross-domain subset. $B{=}0$ is a fixed
+source-only baseline (150-sample source subset, no target data). Classical
+models used 10 seeds per $B$; PegasosQSVC used 5, since a single
+$(B,\text{seed})$ retrain-and-evaluate cycle costs 15--90 minutes of local
+quantum-kernel computation versus under a second for any classical model
+-- a cost asymmetry that is itself part of the confirmatory record, not
+merely an implementation detail.
+
+\begin{table*}[t]
+\centering
+\caption{Cross-domain AUROC (mean$\pm$std) versus target-label budget $B$.
+Quantum: 5 seeds. Classical: 10 seeds.}
+\label{tab:budgetsweep}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+\textbf{Model} & $B{=}0$ & $B{=}25$ & $B{=}50$ & $B{=}100$ & $B{=}150$ & $B{=}300$ \\
+\midrule
+PegasosQSVC (quantum) & 0.658 & 0.929$\pm$.012 & 0.902$\pm$.015 & 0.906$\pm$.008 & 0.909$\pm$.009 & 0.909$\pm$.008 \\
+Random Forest         & 0.537 & 0.937$\pm$.028 & 0.957$\pm$.019 & 0.978$\pm$.006 & \textbf{0.984$\pm$.003} & \textbf{0.988$\pm$.002} \\
+GBT                   & 0.482 & 0.860$\pm$.071 & 0.925$\pm$.033 & 0.969$\pm$.010 & 0.975$\pm$.007 & 0.984$\pm$.003 \\
+Linear SVM            & 0.540 & 0.921$\pm$.011 & 0.930$\pm$.011 & 0.941$\pm$.004 & 0.943$\pm$.004 & 0.946$\pm$.003 \\
+RBF-SVM               & 0.559 & 0.890$\pm$.038 & 0.928$\pm$.022 & 0.943$\pm$.016 & 0.946$\pm$.011 & 0.949$\pm$.011 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig_budget_sweep.png}
+\caption{Cross-domain AUROC vs.\ target-label budget $B$ (log-scaled
+axis below $B{=}25$). PegasosQSVC leads at very low budgets but plateaus
+by $B{=}50$; Random Forest and GBT overtake it from $B{=}100$ onward.}
+\label{fig:budgetsweep}
+\end{figure}
+
+Table~\ref{tab:budgetsweep} and Figure~\ref{fig:budgetsweep} give a
+direct answer: at $B{=}150$, the budget used for this paper's own
+headline \textsc{Switch-Subset} result ($T3$, AUROC $0.913$ in
+Table~\ref{tab:heldout}), Random Forest reaches $0.984\pm0.003$ and GBT
+$0.975\pm0.007$ under the identical protocol -- both above the quantum
+kernel's $0.909\pm0.009$, and with roughly one-third the seed-to-seed
+variance. At $B{=}300$ the gap widens further (Random Forest
+$0.988$ vs.\ PegasosQSVC $0.909$, essentially unchanged from $B{=}150$;
+the quantum kernel's AUROC plateaus while every classical baseline
+continues to improve with more target data). PegasosQSVC's binary F1 is
+also markedly less stable than the classical baselines' at matched
+budgets: at $B{=}150$ its F1 standard deviation across seeds is
+$0.305$ (mean $0.602$) versus Random Forest's $0.011$ (mean $0.951$),
+meaning individual PegasosQSVC retrains at this budget sometimes
+collapse to a near-degenerate hard-decision boundary even though AUROC
+(a ranking metric, insensitive to threshold placement) stays high --
+the same score-orientation sensitivity documented in
+Section~\ref{subsec:audit_status}. The one regime where the quantum
+kernel visibly leads is the smallest budgets ($B\le25$), consistent with
+a compact, structured feature map extracting more signal than an
+under-fit classical model can from very little target data; that
+advantage does not persist as $B$ grows. \textbf{Table~\ref{tab:budgetsweep}
+is therefore direct evidence against, not for, a quantum-superiority
+reading of this paper's own $T2\to T3$ recovery}: an equal-budget
+classical adaptation would have recovered at least as much cross-domain
+AUROC, and more reliably.
+
+\subsection{Confirmatory Protocol: Natural Class Prevalence}
+\label{subsec:naturalprev}
+
+Every other evaluation in this paper samples 50/50 balanced flows.
+Section~\ref{subsec:confirmatory} requires evaluating natural class
+prevalence instead. We re-ran $T1$/$T2$/$T3$ on unbalanced samples
+preserving each dataset's true attack rate (ToN-IoT $\approx80\%$,
+UNSW-NB15 $\approx3$--$5\%$; PegasosQSVC used a smaller 200-sample draw
+for the same compute-cost reason as Section~\ref{subsec:budgetsweep}) and
+report the required extra metrics: precision, MCC, balanced accuracy,
+TPR at FPR${=}0.01$, 10-bin expected calibration error (ECE), and
+alerts per 10,000 flows.
+
+\begin{table*}[t]
+\centering
+\caption{Natural-prevalence $T3$ (cross-domain, adapted) results. Contrast
+with the balanced-sample $T3$ row of Table~\ref{tab:heldout}.}
+\label{tab:naturalprev}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+\textbf{Model} & \textbf{AUROC} & \textbf{F1} & \textbf{MCC} & \textbf{Bal.\ Acc.} & \textbf{ECE} & \textbf{Alerts/10k} \\
+\midrule
+PegasosQSVC (quantum) & 0.849 & 0.137 & 0.200 & 0.772 & 0.349 & 4750 \\
+Random Forest         & 0.989 & 0.683 & 0.688 & 0.939 & 0.051 & 790 \\
+GBT                   & 0.982 & 0.554 & 0.580 & 0.932 & 0.047 & 1120 \\
+Linear SVM            & 0.948 & 0.359 & 0.415 & 0.895 & 0.049 & 2040 \\
+RBF-SVM               & 0.944 & 0.361 & 0.413 & 0.888 & 0.083 & 1970 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+Two findings, both invisible in the balanced-sample results this paper
+otherwise reports. First, binary F1 collapses under true prevalence even
+where AUROC stays high: Random Forest's balanced-sample $T3$ F1 is
+$0.951$ (Table~\ref{tab:budgetsweep}, $B{=}150$) but falls to $0.683$
+under natural prevalence at essentially unchanged AUROC ($0.984\to0.989$)
+-- a ranking metric and a threshold metric telling different stories once
+the class balance an operator would actually see is restored. Second,
+PegasosQSVC's natural-prevalence calibration is the worst of the five
+models by a wide margin (ECE $0.349$ vs.\ $0.047$--$0.083$ for every
+classical baseline) and its alert rate is the highest (4750 per 10,000
+flows, roughly $4$--$6\times$ every classical model's), meaning that at
+true prevalence a security operator using the quantum detector would see
+far more alerts of far less reliable confidence than with any classical
+alternative at the same target-label budget.
+
+\subsection{Confirmatory Protocol: Kernel Diagnostics and Real-QPU Characterisation}
+\label{subsec:kerneldiag}
+
+For the quantum-specific diagnostics of Section~\ref{subsec:kta_geo}, we
+computed the full $8\times8$-qubit kernel Gram matrix on a fixed
+$n{=}100$ balanced source sample, alongside a same-data RBF kernel as
+the classical reference. Kernel-target alignment
+(Eq.~\eqref{eq:kta}) is $0.353$ for the quantum kernel versus $0.160$ for
+RBF -- more than double -- and within-class similarity ($0.250$) exceeds
+between-class similarity ($0.049$) by a factor of five, both consistent
+with a kernel that induces task-relevant structure rather than an
+arbitrary embedding. Effective rank (Eq.~\eqref{eq:reff}) is
+$20.5$ out of $100$, indicating the kernel concentrates variance in a
+modest number of effective dimensions rather than collapsing to
+near-rank-1 or remaining full-rank. The Huang et al.\ geometric
+difference \cite{huang2021} is asymmetric: $g(\text{classical}\,\|\,
+\text{quantum})=4.86$ versus $g(\text{quantum}\,\|\,\text{classical})=3.39$
+(regularisation $\lambda=10^{-3}n$, our own choice, not the original
+paper's exact hyperparameter). A geometric difference this size in the
+classical-cannot-easily-represent-quantum direction is a
+\emph{necessary, not sufficient}, condition for a quantum-kernel
+advantage -- it says the quantum kernel induces structure the classical
+RBF kernel does not easily reproduce, not that this structure is useful
+for this task, a distinction Section~\ref{subsec:budgetsweep} already
+answers empirically in the negative for cross-domain AUROC at moderate
+and large $B$.
+
+For real-hardware characterisation, we ran a deliberately minimal
+6-pair kernel computation (not a full train/evaluate cycle) on
+\texttt{ibm\_fez} (156-qubit Heron r2, IBM Quantum Platform, Open plan),
+transpiled to the backend's native ISA gate set
+(\texttt{generate\_preset\_pass\_manager}) since IBM's runtime primitives
+reject un-transpiled circuits. Transpiled depth was 36 with 10 two-qubit
+(\texttt{cz}) gates at 1024 shots; wall time including queue was
+$65.2\,\text{s}$, of which $4\,\text{s}$ was billed quantum-processor
+time -- $0.67\%$ of the Open plan's 600-second (10-minute) monthly
+allowance for the entire real-QPU characterisation requirement of
+Table~\ref{tab:protocol_status}. Mean absolute kernel error against the
+exact simulator was $0.009$ (max $0.045$) across the six pairs,
+consistent with ordinary two-qubit gate and readout noise on current
+superconducting hardware and small enough not to change any pair's
+qualitative similarity ranking.
+
+\subsection{Confirmatory Protocol: Recurring Domain Shift and Adaptation-Pool Poisoning}
+\label{subsec:recurpoison}
+
+\textbf{Recurring drift.} Section~\ref{subsec:confirmatory} asks whether
+episodic memory measurably helps beyond a memoryless trigger when a
+domain recurs. We ran a 15-episode $A_1\!\to\!B\!\to\!A_2$ stream (5
+episodes each; $A{=}$ToN-IoT, $B{=}$UNSW-NB15) under two conditions that
+differ in exactly one mechanism: a \emph{persistent} SelfReflector (the
+default behaviour reported everywhere else in this paper) and a
+\emph{memoryless} ablation that wipes episode \emph{history} -- not
+policy state -- at each block transition, so \textsc{Reinforce}'s
+3-consecutive-healthy-episode check can never carry across a domain
+change. Both conditions fired their first \textsc{Reinforce} in block
+$A_2$ at the identical episode (episode 12, the third episode back in the
+$A$ domain). This is a negative result reported honestly: because
+\textsc{Reinforce} only inspects the two most recent prior episodes
+(Section~\ref{subsec:reflexive}), a $>\!2$-episode domain excursion
+resets its local streak regardless of whether history persists or is
+wiped, so the rule-based reflector's episodic memory provides \emph{no
+measurable benefit} across this recurrence gap. This is precisely the
+gap the LLM-gated pilot's RAG-based semantic-memory retrieval
+(Section~\ref{subsec:llm_pilot}) was designed to address, since it
+retrieves over the \emph{full} episode history rather than a
+fixed 2-episode window; Table~\ref{tab:protocol_status} still lists a
+multi-seed reflector comparison as open, so this remains a motivated
+design distinction rather than a demonstrated one.
+
+\textbf{Poisoning.} We flipped a controlled fraction
+(0--50\%) of ATTACK-labelled rows to BENIGN in the \textsc{Switch-Subset}
+adaptation pool before retraining -- an attacker hiding traffic from the
+next retrain, matching the Threat Model of
+Section~\ref{subsec:threat} -- for PegasosQSVC, Random Forest, and GBT,
+then evaluated on the clean (never-poisoned) test split and probed
+whether \textsc{Reinforce} would fire on the resulting model.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig_poisoning.png}
+\caption{End-to-end F1 on the clean test set vs.\ adaptation-pool poison
+rate. \textsc{Reinforce} fires at every rate for every model shown,
+including where PegasosQSVC's F1 collapses to 0 at 50\% poisoning.}
+\label{fig:poisoning}
+\end{figure}
+
+\textsc{Reinforce} fired at \emph{every} poison rate for \emph{every}
+model tested, with no exception. The starkest case is PegasosQSVC at
+50\% poisoning: AUROC stays at $0.909$ (statistically indistinguishable
+from the clean-pool value) while F1 collapses to exactly $0.000$ --
+the retrained decision boundary stops making a single correct positive
+prediction on the clean test set, yet \textsc{Reinforce} still fires,
+because its rule inspects only AUROC, never F1, precision, or recall.
+Random Forest and GBT degrade far more gracefully over the same range
+(F1 falling from $0.958\to0.859$ and $0.932\to0.836$ respectively) but
+\textsc{Reinforce} fires identically regardless. This is a direct,
+measured confirmation of the limitation the Threat Model already states
+on structural grounds: \emph{the persistent controller has no built-in
+poisoning defence}, and can lock in an adaptation-pool-poisoned model as
+confidently as a clean one.
+
 % ============================================================
 \section{Analysis and Discussion}
 \label{sec:discussion}
@@ -1158,21 +1414,33 @@ produce useful within-domain binary discrimination in the reported run.
 Second, a substantial source$\to$target degradation occurs between the
 two NetFlow corpora. Third, replacing the source kernel subset with 150
 representative labelled target flows recovers part of the lost binary
-performance. These observations motivate a budgeted adaptation study. The
-LLM-gated pilot of Section~\ref{subsec:llm_results} adds a fourth,
-narrower point: an inference-time language-reasoning decision function,
-gated by a deterministic verifier, can reproduce the rule-based
-controller's core triage behaviour while additionally surfacing a
-threshold-placement failure mode the rule-based reflector has no
-mechanism to diagnose.
+performance. The LLM-gated pilot of Section~\ref{subsec:llm_results}
+adds a fourth, narrower point: an inference-time language-reasoning
+decision function, gated by a deterministic verifier, can reproduce the
+rule-based controller's core triage behaviour while additionally
+surfacing a threshold-placement failure mode the rule-based reflector
+has no mechanism to diagnose.
 
-The evidence does not yet establish quantum advantage, superior sample
-efficiency relative to tuned classical kernels, unsupervised drift
-detection, learned policy improvement (by either reflector variant),
-general multi-domain robustness, or real-QPU viability. These conclusions
-require the confirmatory protocol of Section~\ref{subsec:confirmatory}.
+The confirmatory protocol of Section~\ref{subsec:confirmatory}, run in
+full on the first three points above, adds a fifth, corrective point:
+the recovery in point three is \emph{not} evidence of quantum advantage
+or superior sample efficiency. At the paper's own adaptation budget and
+beyond, equal-budget classical baselines match or exceed the quantum
+kernel's cross-domain AUROC with substantially lower variance
+(Section~\ref{subsec:budgetsweep}), the quantum kernel's calibration
+under natural class prevalence is markedly worse than every classical
+alternative (Section~\ref{subsec:naturalprev}), and the reflexive
+controller -- rule-based or LLM-gated -- has no mechanism to detect
+adaptation-pool poisoning regardless of which detector it drives
+(Section~\ref{subsec:recurpoison}). The evidence still does not establish
+unsupervised drift detection, learned policy improvement (by either
+reflector variant), general multi-domain robustness beyond the single
+tested pair, or full-scale real-QPU viability beyond the minimal
+characterisation of Section~\ref{subsec:kerneldiag}; these remain the
+protocol's open items (Table~\ref{tab:protocol_status}).
 
 \subsection{Quantum Contribution and Required Geometry Diagnostics}
+\label{subsec:kta_geo}
 
 The scientific value of the quantum component should be assessed through
 its induced geometry, not through rhetoric about high-dimensional Hilbert
@@ -1193,8 +1461,8 @@ Together with within/between-class similarity and the classical--quantum
 geometric difference proposed by Huang et al.\ \cite{huang2021}, these
 quantities can show whether the chosen feature map creates task-relevant
 structure or merely an expensive approximation of a classical kernel.
-Neither quantity has yet been computed for the deployed kernel
-(Table~\ref{tab:protocol_status}).
+Section~\ref{subsec:kerneldiag} reports all four diagnostics for the
+deployed kernel.
 
 \subsection{Why Cross-Domain Typing Fails}
 
@@ -1243,16 +1511,27 @@ detection and selectively invokes quantum-kernel analysis for batch
 assessment, uncertain samples, or adaptation, enabling explicit control
 of quantum-computation cost.
 
-\textbf{Limitations.} Current limitations include: (i)~single-run results
-requiring score verification and multi-seed statistics; (ii)~evaluation
-on only one source$\to$target transfer; (iii)~dependence on label
-feedback for ADWIN and episodic metrics; (iv)~non-adaptive Stage~2
-typing; (v)~small-scale simulator-only quantum evaluation; (vi)~the
-LLM-gated pilot's \textsc{Calibrate-Threshold} action is not yet wired
-into the prediction path, so its measured effect is currently null by
-construction, not by evidence of ineffectiveness; and (vii)~the LLM
-pilot itself is a single run with no seed repetition. Equal-budget
-classical adaptation and poisoning robustness also remain untested.
+\textbf{Limitations.} Current limitations include: (i)~the headline
+held-out numbers of Table~\ref{tab:heldout} are still a single run --
+score orientation is now verified (Section~\ref{subsec:audit_status}) and
+multi-seed statistics exist for the confirmatory budget sweep
+(Section~\ref{subsec:budgetsweep}), but have not yet been re-applied to
+re-derive Table~\ref{tab:heldout} itself; (ii)~evaluation on only one
+source$\to$target transfer pair, since NF-BoT-IoT and
+NF-CSE-CIC-IDS2018 are not yet incorporated
+(Section~\ref{subsec:confirmatory}); (iii)~dependence on label feedback
+for ADWIN and episodic metrics; (iv)~non-adaptive Stage~2 typing;
+(v)~real-hardware evidence is now a minimal 6-pair characterisation
+(Section~\ref{subsec:kerneldiag}), not a full train/evaluate cycle on
+a QPU; (vi)~the LLM-gated pilot's \textsc{Calibrate-Threshold} action
+is not yet wired into the prediction path, so its measured effect is
+currently null by construction, not by evidence of ineffectiveness; and
+(vii)~the LLM pilot itself is a single run with no seed repetition.
+Equal-budget classical adaptation and adaptation-pool poisoning are no
+longer untested (Sections~\ref{subsec:budgetsweep}
+and~\ref{subsec:recurpoison} respectively); both instead now weigh
+\emph{against} the quantum kernel's competitiveness and \emph{confirm}
+the controller's lack of poisoning defence.
 
 % ============================================================
 \section{Conclusion}
