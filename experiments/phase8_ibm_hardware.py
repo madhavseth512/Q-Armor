@@ -84,10 +84,12 @@ def _build_ibm_qsvc(token: str, n_qubits: int = 8):
     print("\n  [IBM QPU] Connecting to IBM Quantum service ...")
     # channel="ibm_quantum" was retired in IBM's 2026-03 Open Plan migration
     # (see data/CONFIG_PROVENANCE.md); ibm_quantum_platform is the current
-    # channel and no longer takes the legacy hub/group/project instance string.
+    # channel, and instance= now takes the account's real CRN, not the legacy
+    # hub/group/project string.
     service = QiskitRuntimeService(
         channel="ibm_quantum_platform",
         token=token,
+        instance=config.IBM_INSTANCE,
     )
     # least_busy() no longer takes operational=/simulator= kwargs directly in
     # qiskit-ibm-runtime 0.47 -- IBMBackend has no .operational/.simulator

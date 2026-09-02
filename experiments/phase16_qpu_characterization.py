@@ -97,7 +97,8 @@ def main() -> None:
     print(f"  {X.shape} points, labels {y_bin[idx]}")
 
     print("\nConnecting to IBM Quantum ...")
-    service = QiskitRuntimeService(channel="ibm_quantum_platform", token=token)
+    service = QiskitRuntimeService(channel="ibm_quantum_platform", token=token,
+                                    instance=config.IBM_INSTANCE)
     # least_busy() no longer takes operational=/simulator= kwargs directly in
     # qiskit-ibm-runtime 0.47 -- IBMBackend has no .operational/.simulator
     # attributes any more (verified against the installed version before

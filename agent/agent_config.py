@@ -436,13 +436,15 @@ SWITCH_SUBSET_N_CROSS: int = 300
 IBM_HARDWARE_N_TRAIN: int = 20         # training kernel subset (10 benign + 10 attack)
 IBM_HARDWARE_N_TEST:  int = 10         # test subset (5 benign + 5 attack)
 IBM_SHOTS:            int = 1024       # shots per kernel circuit on real QPU
-IBM_INSTANCE:         str = "ibm-q/open/main"  # DEAD since the 2026-03 Open Plan
-# migration to channel="ibm_quantum_platform": this legacy hub/group/project
-# string is no longer accepted, and neither IBM script (phase8_ibm_hardware.py,
-# phase16_qpu_characterization.py) passes an instance= argument any more --
-# QiskitRuntimeService auto-discovers the account's instance from the API key.
-# Kept only so a real CRN can be set here later if the account ever needs one
-# (e.g. multiple instances on the same key); unused until then.
+IBM_INSTANCE: str = (  # the account's real Open-plan instance CRN, not a
+    # legacy hub/group/project string (that format is dead since the 2026-03
+    # Open Plan migration to channel="ibm_quantum_platform"). Explicitly wired
+    # into both IBM scripts' QiskitRuntimeService(instance=...) call rather
+    # than left to auto-discovery, since it's the only instance on the
+    # account -- one less thing to depend on for the first real connection.
+    "crn:v1:bluemix:public:quantum-computing:us-east:"
+    "a/acc32584efed4b5f97f1fa71b5a5a85f:5a8cce8e-233a-4f50-83ea-5b3c3a22c144::"
+)
 
 # Path for serialised model checkpoints used across Phase 8 experiments.
 CHECKPOINT_DIR: str = "agent_state/checkpoints"
