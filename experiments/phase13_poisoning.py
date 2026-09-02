@@ -120,6 +120,11 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--confirm", action="store_true")
     parser.add_argument("--models", type=str, default="pegasos_qsvc,random_forest,gbt")
+    parser.add_argument("--eval-cap", type=int, default=1000,
+                        help="Clean eval-set size. QSVC predict cost scales with "
+                             "n_train x n_test -- shrink this for the quantum arm "
+                             "(6 poison-rate retrains x a 1000-sample predict each "
+                             "is prohibitively slow; see phase10/phase11's --eval-cap).")
     args = parser.parse_args()
     models = args.models.split(",")
 
@@ -148,7 +153,7 @@ def main() -> None:
     X8_unsw_te = pre.transform(X_unsw_te_df)
 
     # Same capped clean test subset as phase8_final_eval.py / phase10.
-    QSVC_CAP = 1000
+    QSVC_CAP = args.eval_cap
     rng900 = np.random.default_rng(config.RANDOM_SEED + 900)
     b = np.where(y_unsw_bin_te == 0)[0]
     a = np.where(y_unsw_bin_te == 1)[0]
@@ -213,10 +218,21 @@ def main() -> None:
                   f"F1={f1:.4f}  FPR95={fpr95:.4f}  "
                   f"REINFORCE_fires={reinforced}  ({elapsed:.1f}s)")
 
-            with open(f"{RESULTS_DIR}/phase13_poisoning_metrics.json", "w") as f:
+            # Merge with any existing file rather than overwrite -- models are
+            # often run in separate invocations (QSVC is much slower than the
+            # classical baselines), and this checkpoints after every poison
+            # rate, not just at the end of a model, so a slow QSVC run doesn't
+            # lose progress if interrupted.
+            out_path = f"{RESULTS_DIR}/phase13_poisoning_metrics.json"
+            existing_results = {}
+            if os.path.exists(out_path):
+                with open(out_path) as ef:
+                    existing_results = json.load(ef).get("results", {})
+            existing_results[model_name] = results[model_name]
+            with open(out_path, "w") as f:
                 json.dump({"experiment": "phase13_poisoning",
-                           "poison_rates": POISON_RATES,
-                           "pool_size": n_cross, "results": results}, f, indent=2)
+                           "poison_rates": POISON_RATES, "eval_cap": QSVC_CAP,
+                           "pool_size": n_cross, "results": existing_results}, f, indent=2)
 
     scratch = f"{RESULTS_DIR}/_scratch_episodes.jsonl"
     if os.path.exists(scratch):

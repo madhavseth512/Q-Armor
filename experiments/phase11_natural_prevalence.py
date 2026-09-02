@@ -115,8 +115,14 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--confirm", action="store_true")
     parser.add_argument("--models", type=str, default=",".join(MODEL_REGISTRY.keys()))
+    parser.add_argument("--eval-cap", type=int, default=NATURAL_CAP,
+                        help="Natural-prevalence eval set size. QSVC predict cost "
+                             "scales with n_train x n_test -- shrink this for the "
+                             "quantum arm (see experiments/phase10_confirmatory.py, "
+                             "which hit the same cost and added the same flag).")
     args = parser.parse_args()
     models = args.models.split(",")
+    eval_cap = args.eval_cap
 
     if not args.confirm:
         print("Phase 11: natural class-prevalence evaluation.")
@@ -152,8 +158,8 @@ def main() -> None:
         idx = rng.choice(len(y), n, replace=False)
         return X[idx], y[idx]
 
-    X_ton_nat, y_ton_nat = _natural_sample(X8_ton_te, y_ton_bin_te, NATURAL_CAP, 910)
-    X_unsw_nat, y_unsw_nat = _natural_sample(X8_unsw_te, y_unsw_bin_te, NATURAL_CAP, 911)
+    X_ton_nat, y_ton_nat = _natural_sample(X8_ton_te, y_ton_bin_te, eval_cap, 910)
+    X_unsw_nat, y_unsw_nat = _natural_sample(X8_unsw_te, y_unsw_bin_te, eval_cap, 911)
     print(f"\nNatural-prevalence eval sets:")
     print(f"  ToN-IoT  : n={len(y_ton_nat)}  attack%={y_ton_nat.mean():.4f}")
     print(f"  UNSW-NB15: n={len(y_unsw_nat)}  attack%={y_unsw_nat.mean():.4f}")
@@ -207,18 +213,28 @@ def main() -> None:
         print(f"  T3 alerts/10k={t3['alerts_per_10k']:.1f}  ECE={t3['ece_10bin']:.4f}  "
               f"TPR@FPR{FPR_TARGET}={t3[f'tpr_at_fpr{FPR_TARGET}']:.4f}")
 
-        results[model_name] = {"T1": t1, "T2": t2, "T3": t3}
+        results[model_name] = {"T1": t1, "T2": t2, "T3": t3, "eval_cap": eval_cap}
 
-        with open(f"{RESULTS_DIR}/phase11_natural_prevalence_metrics.json", "w") as f:
+        # Merge with any existing file rather than overwrite -- different
+        # models may have been run in separate invocations at different
+        # eval_cap sizes (QSVC predict cost forced a smaller cap than the
+        # classical models used; see --eval-cap).
+        out_path = f"{RESULTS_DIR}/phase11_natural_prevalence_metrics.json"
+        existing_results = {}
+        if os.path.exists(out_path):
+            with open(out_path) as f:
+                existing_results = json.load(f).get("results", {})
+        existing_results.update(results)
+
+        with open(out_path, "w") as f:
             json.dump({
                 "experiment": "phase11_natural_prevalence",
-                "natural_cap": NATURAL_CAP,
                 "fpr_target": FPR_TARGET,
                 "eval_prevalence": {"ton_iot": float(y_ton_nat.mean()),
                                      "unsw_nb15": float(y_unsw_nat.mean())},
-                "results": results,
+                "results": existing_results,
             }, f, indent=2)
-        print(f"  [saved -> {RESULTS_DIR}/phase11_natural_prevalence_metrics.json]")
+        print(f"  [saved -> {out_path}]")
 
     print("\nDone.")
 
