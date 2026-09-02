@@ -75,10 +75,10 @@ def main() -> None:
     if not token:
         sys.exit("IBM_QUANTUM_TOKEN not set in .env -- cannot reach IBM Quantum.")
 
-    from qiskit import transpile
     from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as IBMSamplerV2
     from qiskit_machine_learning.kernels import FidelityQuantumKernel
     from qiskit_machine_learning.state_fidelities import ComputeUncompute
+    from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 
     print("=" * 70)
     print("Phase 16: real-QPU characterisation")
@@ -121,11 +121,21 @@ def main() -> None:
     except Exception as e:
         print(f"  [calibration timestamp unavailable: {e}]")
 
+    # IBM's runtime primitives reject circuits that aren't already expressed
+    # in the backend's native ISA gate set (confirmed live: submitting the
+    # feature map's raw ry gates raised IBMInputValueError, rejected before
+    # any job was created -- IBM has required pre-transpiled ("ISA") circuits
+    # since March 2024). generate_preset_pass_manager(backend=...) builds the
+    # right transpilation target; reused for both the reported depth/gate
+    # count AND the actual circuits ComputeUncompute submits, so the reported
+    # numbers describe exactly what ran.
+    pm = generate_preset_pass_manager(backend=backend, optimization_level=1)
+
     fm = CyberSecurityFeatureMap()
     bound = fm.assign_parameters(X[0])
-    transpiled = transpile(bound, backend=backend)
-    depth = transpiled.depth()
-    ops = transpiled.count_ops()
+    isa_circuit = pm.run(bound)
+    depth = isa_circuit.depth()
+    ops = isa_circuit.count_ops()
     two_q_gate_names = {"cx", "cz", "ecr", "cp", "rzx"}
     two_q_count = sum(v for k, v in ops.items() if k in two_q_gate_names)
     print(f"  Transpiled depth: {depth}   two-qubit gates: {two_q_count}   ops: {dict(ops)}")
@@ -140,9 +150,11 @@ def main() -> None:
     # construction). Wrap the sampler in a ComputeUncompute fidelity object,
     # same pattern as experiments/phase15_finiteshot_sweep.py. IBMSamplerV2
     # also has no shots= constructor arg -- default_shots must be set via
-    # options=, or config.IBM_SHOTS is silently never applied.
+    # options=, or config.IBM_SHOTS is silently never applied. pass_manager=pm
+    # is what makes ComputeUncompute submit ISA-transpiled circuits instead of
+    # the raw feature map.
     sampler = IBMSamplerV2(backend, options={"default_shots": config.IBM_SHOTS})
-    fidelity_ibm = ComputeUncompute(sampler=sampler)
+    fidelity_ibm = ComputeUncompute(sampler=sampler, pass_manager=pm)
     fidelity_kernel_ibm = FidelityQuantumKernel(feature_map=fm, fidelity=fidelity_ibm)
 
     # One batched evaluate(X) call over the whole 4x4 matrix, not one call per
@@ -158,7 +170,21 @@ def main() -> None:
     wall_time = time.time() - t0
     print(f"  wall time (includes queue): {wall_time:.1f}s")
 
-    exec_time_reported = None  # populated below if the runtime exposes it
+    # FidelityQuantumKernel.evaluate() doesn't return the underlying job, so
+    # the queue-independent execution time (the number that actually counts
+    # against the free-tier quota, distinct from wall-clock queue wait) has
+    # to be recovered after the fact via the account's own job history --
+    # confirmed live: job.usage() / job.metrics()['usage']['quantum_seconds']
+    # is that number (this run: 4 seconds of quantum time for the whole
+    # 6-pair job, out of the 600s/28-day Open plan quota).
+    exec_time_reported = None
+    try:
+        recent_job = next(iter(service.jobs(limit=1)))
+        exec_time_reported = recent_job.usage()
+        print(f"  actual QPU quantum-time used: {exec_time_reported}s "
+              f"(job {recent_job.job_id()})")
+    except Exception as e:
+        print(f"  [queue-independent execution time unavailable: {e}]")
 
     print("\nComputing the SAME pairs on the exact/default (ideal) simulator ...")
     fidelity_kernel_exact = FidelityQuantumKernel(feature_map=fm)

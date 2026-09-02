@@ -77,6 +77,7 @@ def _build_ibm_qsvc(token: str, n_qubits: int = 8):
         from qiskit_machine_learning.kernels import FidelityQuantumKernel
         from qiskit_machine_learning.state_fidelities import ComputeUncompute
         from qiskit_machine_learning.algorithms import PegasosQSVC
+        from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
         from perception.feature_map import CyberSecurityFeatureMap
     except ImportError as e:
         raise RuntimeError(f"IBM runtime import failed: {e}") from e
@@ -108,8 +109,14 @@ def _build_ibm_qsvc(token: str, n_qubits: int = 8):
     # directly raises a TypeError on construction, before any API call).
     # IBMSamplerV2 also needs options={"default_shots": ...} to actually
     # apply config.IBM_SHOTS; its constructor has no shots= argument.
+    # pass_manager= is required too -- confirmed live against real hardware:
+    # IBM's runtime primitives reject circuits not already transpiled to the
+    # backend's native ISA gate set (IBMInputValueError on the raw feature
+    # map's ry gates, rejected before any job was created). Without this,
+    # every real-hardware attempt fails at submission.
+    pm = generate_preset_pass_manager(backend=backend, optimization_level=1)
     sampler = IBMSamplerV2(backend, options={"default_shots": config.IBM_SHOTS})
-    fidelity = ComputeUncompute(sampler=sampler)
+    fidelity = ComputeUncompute(sampler=sampler, pass_manager=pm)
     feature_map = CyberSecurityFeatureMap(n_qubits=n_qubits)
     kernel = FidelityQuantumKernel(feature_map=feature_map, fidelity=fidelity)
     model = PegasosQSVC(quantum_kernel=kernel, C=1.0, num_steps=config.PEGASOS_TAU)
