@@ -161,9 +161,9 @@ transfer.
 \item We define a publication-grade validation protocol covering score
 orientation, leakage control, equal target-label budgets, natural class
 prevalence, repeated seeds, calibration, kernel geometry, finite-shot
-noise, and intervention cost, and we report -- honestly and item by item
--- which parts of that protocol the present study satisfies
-(Section~\ref{subsec:protocol_status}).
+noise, and intervention cost, and we run it: Sections~\ref{subsec:audit_status}--\ref{subsec:confirmatory}
+and~\ref{subsec:budgetsweep}--\ref{subsec:recurpoison} report, honestly,
+which parts the present study satisfies and which remain open.
 \item We report a preliminary pilot in which the heuristic reflector is
 replaced by a four-stage LLM-gated decision function (Diagnoser, Planner,
 deterministic Verifier, Reflector) as an alternative, \emph{not learned},
@@ -485,10 +485,12 @@ $\mathbf{a} \in \mathbb{C}^n$,
 Hence $K \succeq 0$.
 \end{proof}
 
-Finite-shot estimates $\hat{K}$ need not remain exactly PSD. We therefore
-report, for confirmatory experiments, the minimum eigenvalue,
-negative-eigenvalue mass, and any PSD projection used before fitting
-(Table~\ref{tab:protocol_status}).
+Finite-shot estimates $\hat{K}$ need not remain exactly PSD. The
+eigenvalue spectrum computed in Section~\ref{subsec:kerneldiag} is
+positive throughout (smallest eigenvalue $5.3\times10^{-8}$, no negative
+mass), consistent with a valid PSD Gram matrix at that sample size; we
+report the minimum eigenvalue and any PSD projection for every
+subsequent confirmatory kernel computation on the same basis.
 
 \subsection{Finite-Shot Kernel Accuracy}
 
@@ -829,55 +831,11 @@ dataset. Additional source$\to$target pairs (NF-BoT-IoT,
 NF-CSE-CIC-IDS2018) are not yet incorporated. At least one realistic
 hardware-noise model beyond the live QPU run of
 Section~\ref{subsec:kerneldiag} remains untested. These, together with
-the LLM-pilot sub-items of Table~\ref{tab:protocol_status}, are the
-protocol's remaining scope.
-
-\subsection{Validation Protocol Status}
-\label{subsec:protocol_status}
-
-Table~\ref{tab:protocol_status} reports, item by item, which parts of the
-score-audit and confirmatory protocols above are satisfied by the present
-study. We report this table so that a reader can determine precisely
-which conclusions in Sections~\ref{sec:results}--\ref{sec:discussion} are
-supported by completed work versus scoped as required future work.
-
-\begin{table*}[t]
-\centering
-\caption{Validation protocol status. \ding{51}\ complete,
-$\sim$ partial, \ding{55}\ open.}
-\label{tab:protocol_status}
-\renewcommand{\arraystretch}{1.15}
-\begin{tabular}{@{}p{9.5cm}p{5cm}@{}}
-\toprule
-\textbf{Requirement} & \textbf{Status} \\
-\midrule
-\multicolumn{2}{@{}l}{\textit{Score-audit protocol (Sec.~\ref{subsec:audit_status})}} \\
-Hard decisions via native margin, not argmax(proba) & \ding{51} \\
-Label $\to$ internal $\pm1$ mapping verified & \ding{51} \\
-\texttt{predict} vs.\ sign(\texttt{decision\_function}) test & \ding{51} \\
-Manual toy-example AUROC agreement check & \ding{51} \\
-\midrule
-\multicolumn{2}{@{}l}{\textit{Confirmatory protocol (Sec.~\ref{subsec:confirmatory})}} \\
-Multi-seed repetition (10+ seeds, bootstrap CI) & $\sim$ (10 classical; 5 quantum, Sec.~\ref{subsec:budgetsweep}) \\
-Equal-budget classical baselines (linear SVM, RBF-SVM, RF, GBT) & \ding{51} \\
-Budget sweep $B\in\{0,25,50,100,150,300\}$ & \ding{51} (Sec.~\ref{subsec:budgetsweep}) \\
-Natural class-prevalence evaluation & \ding{51} (Sec.~\ref{subsec:naturalprev}) \\
-Temporal / capture-aware splits & \ding{55} (infeasible: no timestamp field in either dataset) \\
-Additional source$\to$target pairs & \ding{55} \\
-Kernel-target alignment / effective rank & \ding{51} (Sec.~\ref{subsec:kerneldiag}) \\
-Finite-shot sweep $S\in\{128,\dots,4096\}$ & \ding{51} (Sec.~\ref{subsec:finiteshot}) \\
-Real-QPU characterisation & \ding{51} (minimal 6-pair run, \texttt{ibm\_fez}; Sec.~\ref{subsec:kerneldiag}) \\
-Recurring A$\to$B$\to$A drift study & \ding{51} (Sec.~\ref{subsec:recurpoison}) \\
-Adaptation-pool poisoning study & \ding{51} (Sec.~\ref{subsec:recurpoison}) \\
-\midrule
-\multicolumn{2}{@{}l}{\textit{LLM-gated pilot (Sec.~\ref{subsec:llm_pilot})}} \\
-Deterministic safety verifier implemented & \ding{51} \\
-CALIBRATE-THRESHOLD wired into prediction path & \ding{55} \\
-SWITCH-TYPE exercised end-to-end & \ding{55} \\
-Multi-seed reflector comparison & \ding{55} \\
-\bottomrule
-\end{tabular}
-\end{table*}
+the LLM-pilot's still-open sub-items -- \textsc{Calibrate-Threshold}
+wired into the prediction path, \textsc{Switch-Type} exercised
+end-to-end, and a multi-seed reflector comparison
+(Section~\ref{subsec:llm_results}) -- are the protocol's remaining
+scope.
 
 % ============================================================
 \section{Results and Evaluation}
@@ -967,7 +925,7 @@ Stage~1 metric throughout this paper precisely because it is
 threshold-independent and unaffected by this instability;
 \textsc{Calibrate-Threshold} (Section~\ref{subsec:llm_pilot}) is the
 mechanism designed to address it, though not yet wired into the
-prediction path (Table~\ref{tab:protocol_status}).
+prediction path.
 
 \subsection{Balanced Validation Subset}
 \label{subsec:e8a}
@@ -1030,8 +988,9 @@ shot noise improving discrimination, and should not be read as a
 performance trend across $S$. Training time grew from $10.0\,\text{s}$
 ($S{=}128$) to $30.4\,\text{s}$ ($S{=}4096$), consistent with per-shot
 sampling cost. This sweep, not the earlier single number, is the
-finite-shot pilot required by Table~\ref{tab:protocol_status}; it is
-still not QPU validation or evidence of robustness to hardware noise.
+finite-shot pilot the confirmatory protocol
+(Section~\ref{subsec:confirmatory}) requires; it is still not QPU
+validation or evidence of robustness to hardware noise.
 
 \subsection{Held-Out Evaluation}
 \label{subsec:e8c}
@@ -1124,7 +1083,7 @@ same episode sampling) under three reflector configurations: the
 ablation that fires \textsc{Switch-Subset} whenever ADWIN detects drift
 and takes no other action. Table~\ref{tab:llm} and
 Figure~\ref{fig:llmcompare} summarise the outcome. We flag this as a
-\emph{single-run pilot} (Table~\ref{tab:protocol_status}); the deltas
+\emph{single-run pilot}; the deltas
 below should not be read as a demonstrated policy-quality difference
 without seed repetition.
 
@@ -1177,8 +1136,8 @@ This is a single realisation of a stochastic system, not evidence of
 better reasoning in general. Third, \textsc{Switch-Type} was never
 triggered: its precondition (Stage-2 macro-F1 collapsing under
 cross-domain deployment) is not observable in this binary-only episode
-harness, which does not track Stage-2 typing metrics -- an open item in
-Table~\ref{tab:protocol_status}.
+harness, which does not track Stage-2 typing metrics -- \textsc{Switch-Type}
+exercised end-to-end remains open future work.
 
 \subsection{Confirmatory Protocol: Equal-Budget Sweep}
 \label{subsec:budgetsweep}
@@ -1261,9 +1220,9 @@ prevalence instead. We re-ran $T1$/$T2$/$T3$ on unbalanced samples
 preserving each dataset's true attack rate (ToN-IoT $\approx80\%$,
 UNSW-NB15 $\approx3$--$5\%$; PegasosQSVC used a smaller 200-sample draw
 for the same compute-cost reason as Section~\ref{subsec:budgetsweep}) and
-report the required extra metrics: precision, MCC, balanced accuracy,
-TPR at FPR${=}0.01$, 10-bin expected calibration error (ECE), and
-alerts per 10,000 flows.
+report the required extra metrics in Table~\ref{tab:naturalprev}:
+precision, MCC, balanced accuracy, TPR at FPR${=}0.01$, 10-bin expected
+calibration error (ECE), and alerts per 10,000 flows.
 
 \begin{table*}[t]
 \centering
@@ -1336,7 +1295,7 @@ reject un-transpiled circuits. Transpiled depth was 36 with 10 two-qubit
 $65.2\,\text{s}$, of which $4\,\text{s}$ was billed quantum-processor
 time -- $0.67\%$ of the Open plan's 600-second (10-minute) monthly
 allowance for the entire real-QPU characterisation requirement of
-Table~\ref{tab:protocol_status}. Mean absolute kernel error against the
+Section~\ref{subsec:confirmatory}. Mean absolute kernel error against the
 exact simulator was $0.009$ (max $0.045$) across the six pairs,
 consistent with ordinary two-qubit gate and readout noise on current
 superconducting hardware and small enough not to change any pair's
@@ -1365,9 +1324,9 @@ measurable benefit} across this recurrence gap. This is precisely the
 gap the LLM-gated pilot's RAG-based semantic-memory retrieval
 (Section~\ref{subsec:llm_pilot}) was designed to address, since it
 retrieves over the \emph{full} episode history rather than a
-fixed 2-episode window; Table~\ref{tab:protocol_status} still lists a
-multi-seed reflector comparison as open, so this remains a motivated
-design distinction rather than a demonstrated one.
+fixed 2-episode window; a multi-seed reflector comparison remains open
+(Section~\ref{subsec:llm_results}), so this remains a motivated design
+distinction rather than a demonstrated one.
 
 \textbf{Poisoning.} We flipped a controlled fraction
 (0--50\%) of ATTACK-labelled rows to BENIGN in the \textsc{Switch-Subset}
@@ -1386,7 +1345,8 @@ including where PegasosQSVC's F1 collapses to 0 at 50\% poisoning.}
 \label{fig:poisoning}
 \end{figure}
 
-\textsc{Reinforce} fired at \emph{every} poison rate for \emph{every}
+Figure~\ref{fig:poisoning} shows the result: \textsc{Reinforce} fired at
+\emph{every} poison rate for \emph{every}
 model tested, with no exception. The starkest case is PegasosQSVC at
 50\% poisoning: AUROC stays at $0.909$ (statistically indistinguishable
 from the clean-pool value) while F1 collapses to exactly $0.000$ --
@@ -1437,7 +1397,7 @@ unsupervised drift detection, learned policy improvement (by either
 reflector variant), general multi-domain robustness beyond the single
 tested pair, or full-scale real-QPU viability beyond the minimal
 characterisation of Section~\ref{subsec:kerneldiag}; these remain the
-protocol's open items (Table~\ref{tab:protocol_status}).
+protocol's open items (Section~\ref{subsec:confirmatory}).
 
 \subsection{Quantum Contribution and Required Geometry Diagnostics}
 \label{subsec:kta_geo}
@@ -1552,9 +1512,9 @@ rule-based reflector, though its remedial mechanism is not yet wired into
 measured outcomes. Q-ARMOR is positioned as a study of adaptive
 quantum-kernel representation under network domain shift, not as evidence
 of quantum advantage or learned autonomous optimisation, by either
-reflector variant. Table~\ref{tab:protocol_status} lists, without
-exception, the confirmatory work required before any stronger claim would
-be warranted.
+reflector variant. Section~\ref{subsec:confirmatory} details, without
+exception, the confirmatory work completed and still required before any
+stronger claim would be warranted.
 
 % ============================================================
 \section*{Acknowledgment}
