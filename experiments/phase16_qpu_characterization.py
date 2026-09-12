@@ -54,18 +54,28 @@ from data.nf_loader import NFPreprocessor, read_nf
 from perception.feature_map import CyberSecurityFeatureMap
 
 RESULTS_DIR = "results/phase16"
-N_POINTS = 4  # 6 unique off-diagonal pairs -- deliberately tiny
+# 24 points -> 276 unique off-diagonal pairs, ~185 s of QPU time at the
+# 0.67 s/pair rate measured by the original 4-point run. Large enough to put a
+# confidence interval on the kernel-error distribution (the 4-point run gave
+# only 6 error samples), still well inside the Open plan's 600 s/28-day budget.
+DEFAULT_N_POINTS = 24
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--confirm", action="store_true",
                         help="Confirm you understand this uses real IBM Quantum QPU time.")
+    parser.add_argument("--n-points", type=int, default=DEFAULT_N_POINTS,
+                        help="Balanced sample size. The run submits n(n-1)/2 kernel "
+                             "circuits at roughly 0.67 s of QPU time each.")
     args = parser.parse_args()
+    n_points = args.n_points
+    n_pairs = n_points * (n_points - 1) // 2
 
     if not args.confirm:
         print("Phase 16: real-QPU characterisation.")
-        print(f"  {N_POINTS} points -> {N_POINTS * (N_POINTS - 1) // 2} circuit pairs on real hardware.")
+        print(f"  {n_points} points -> {n_pairs} circuit pairs on real hardware.")
+        print(f"  Estimated cost: ~{n_pairs * 0.67:.0f} s of the 600 s / 28-day allowance.")
         print("  This spends real, limited IBM Quantum free-tier QPU time.")
         print("  Re-run with --confirm to proceed.")
         sys.exit(0)
@@ -91,8 +101,8 @@ def main() -> None:
     rng = np.random.default_rng(config.RANDOM_SEED + 1600)
     b_idx = np.where(y_bin == 0)[0]
     a_idx = np.where(y_bin == 1)[0]
-    idx = np.concatenate([rng.choice(b_idx, N_POINTS // 2, replace=False),
-                           rng.choice(a_idx, N_POINTS // 2, replace=False)])
+    idx = np.concatenate([rng.choice(b_idx, n_points // 2, replace=False),
+                           rng.choice(a_idx, n_points // 2, replace=False)])
     X = X8[idx]
     print(f"  {X.shape} points, labels {y_bin[idx]}")
 
@@ -140,7 +150,7 @@ def main() -> None:
     two_q_count = sum(v for k, v in ops.items() if k in two_q_gate_names)
     print(f"  Transpiled depth: {depth}   two-qubit gates: {two_q_count}   ops: {dict(ops)}")
 
-    pairs = list(itertools.combinations(range(N_POINTS), 2))
+    pairs = list(itertools.combinations(range(n_points), 2))
     print(f"\nSubmitting {len(pairs)} kernel-pair circuits to {backend.name} "
           f"({config.IBM_SHOTS} shots each) ...")
 
@@ -157,10 +167,10 @@ def main() -> None:
     fidelity_ibm = ComputeUncompute(sampler=sampler, pass_manager=pm)
     fidelity_kernel_ibm = FidelityQuantumKernel(feature_map=fm, fidelity=fidelity_ibm)
 
-    # One batched evaluate(X) call over the whole 4x4 matrix, not one call per
-    # pair -- FidelityQuantumKernel batches the circuits it needs into a
-    # single Sampler job internally, whereas 6 separate per-pair calls would
-    # submit 6 separate jobs, each paying its own IBM queue wait. That queue
+    # One batched evaluate(X) call over the whole n x n matrix, not one call
+    # per pair -- FidelityQuantumKernel batches the circuits it needs into a
+    # single Sampler job internally, whereas per-pair calls would submit one
+    # job per pair, each paying its own IBM queue wait. That queue
     # time doesn't count against the QPU-time quota, but it does turn a
     # sub-minute job into a potentially much longer wall-clock wait for no
     # benefit -- same batching already used in phase14_kernel_alignment.py.
@@ -194,9 +204,36 @@ def main() -> None:
     ibm_arr = np.array(ibm_pair_values)
     exact_arr = np.array(exact_pair_values)
     abs_err = np.abs(ibm_arr - exact_arr)
-    print(f"\nKernel error vs ideal:  mean={abs_err.mean():.4f}  max={abs_err.max():.4f}")
-    for (i, j), iv, ev, e in zip(pairs, ibm_arr, exact_arr, abs_err):
-        print(f"  ({i},{j})  IBM={iv:.4f}  exact={ev:.4f}  |err|={e:.4f}")
+
+    # With n(n-1)/2 error samples rather than 6, the mean deviation is worth a
+    # confidence interval -- that is the whole point of running more than the
+    # original 4-point characterisation. Percentile bootstrap, same approach
+    # as experiments/phase10_confirmatory.py.
+    boot_rng = np.random.default_rng(config.RANDOM_SEED)
+    boot_means = [boot_rng.choice(abs_err, size=len(abs_err), replace=True).mean()
+                  for _ in range(2000)]
+    ci_lo, ci_hi = np.percentile(boot_means, [2.5, 97.5])
+    err_stats = {
+        "n_samples": int(len(abs_err)),
+        "mean": float(abs_err.mean()),
+        "std": float(abs_err.std(ddof=1)),
+        "median": float(np.median(abs_err)),
+        "p95": float(np.percentile(abs_err, 95)),
+        "max": float(abs_err.max()),
+        "mean_ci95_lo": float(ci_lo),
+        "mean_ci95_hi": float(ci_hi),
+    }
+
+    print(f"\nKernel error vs ideal ({err_stats['n_samples']} matrix entries):")
+    print(f"  mean={err_stats['mean']:.4f}  95% CI [{ci_lo:.4f}, {ci_hi:.4f}]")
+    print(f"  std={err_stats['std']:.4f}  median={err_stats['median']:.4f}  "
+          f"p95={err_stats['p95']:.4f}  max={err_stats['max']:.4f}")
+    worst = np.argsort(abs_err)[::-1][:5]
+    print("  five largest deviations:")
+    for k in worst:
+        i, j = pairs[k]
+        print(f"    ({i},{j})  IBM={ibm_arr[k]:.4f}  exact={exact_arr[k]:.4f}  "
+              f"|err|={abs_err[k]:.4f}")
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
     out = {
@@ -209,11 +246,11 @@ def main() -> None:
         "shots": config.IBM_SHOTS,
         "wall_time_s_includes_queue": round(wall_time, 1),
         "queue_independent_execution_time_s": exec_time_reported,
-        "n_points": N_POINTS,
+        "n_points": n_points,
         "pairs": [[i, j] for i, j in pairs],
         "ibm_kernel_values": ibm_arr.tolist(),
         "exact_kernel_values": exact_arr.tolist(),
-        "abs_error": {"mean": float(abs_err.mean()), "max": float(abs_err.max())},
+        "abs_error": err_stats,
     }
     path = f"{RESULTS_DIR}/phase16_qpu_characterization_metrics.json"
     with open(path, "w") as f:

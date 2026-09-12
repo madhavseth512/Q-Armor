@@ -1285,21 +1285,39 @@ for this task, a distinction Section~\ref{subsec:budgetsweep} already
 answers empirically in the negative for cross-domain AUROC at moderate
 and large $B$.
 
-For real-hardware characterisation, we ran a deliberately minimal
-6-pair kernel computation (not a full train/evaluate cycle) on
+For real-hardware characterisation, we ran a 24-point kernel computation
+(276 unique off-diagonal entries; not a full train/evaluate cycle) on
 \texttt{ibm\_fez} (156-qubit Heron r2, IBM Quantum Platform, Open plan),
 transpiled to the backend's native ISA gate set
 (\texttt{generate\_preset\_pass\_manager}) since IBM's runtime primitives
 reject un-transpiled circuits. Transpiled depth was 36 with 10 two-qubit
 (\texttt{cz}) gates at 1024 shots; wall time including queue was
-$65.2\,\text{s}$, of which $4\,\text{s}$ was billed quantum-processor
-time -- $0.67\%$ of the Open plan's 600-second (10-minute) monthly
+$113\,\text{s}$, of which $77\,\text{s}$ was billed quantum-processor
+time -- $12.8\%$ of the Open plan's 600-second (10-minute) 28-day
 allowance for the entire real-QPU characterisation requirement of
-Section~\ref{subsec:confirmatory}. Mean absolute kernel error against the
-exact simulator was $0.009$ (max $0.045$) across the six pairs,
-consistent with ordinary two-qubit gate and readout noise on current
-superconducting hardware and small enough not to change any pair's
-qualitative similarity ranking.
+Section~\ref{subsec:confirmatory}.
+
+Mean absolute kernel error against the exact simulator was $0.0264$
+(95\% bootstrap CI $[0.0204,\,0.0326]$), but the error distribution is
+strongly skewed (median $0.0018$, p95 $0.153$, max $0.195$) and its
+structure is systematic rather than random. Hardware entries are biased
+\emph{downward} -- mean signed deviation $-0.024$, with $68\%$ of entries
+below their ideal value -- and the deviation scales with the overlap
+being measured: mean $|\Delta|$ rises monotonically from $0.0012$ for
+near-orthogonal pairs ($K<0.01$, $n{=}145$), through $0.026$ for
+$0.1\le K<0.5$, to $0.154$ for near-identical pairs ($K\ge0.9$,
+$n{=}17$). This is the signature of decoherence pulling large overlaps
+toward the maximally mixed state while leaving near-orthogonal pairs
+essentially exact. The induced similarity \emph{ordering} nonetheless
+survives (Spearman $\rho=0.957$, Pearson $r=0.999$ against the ideal
+kernel), so the hardware Gram matrix remains structurally usable even
+though individual high-overlap entries are materially depressed.
+
+One correction is warranted: an earlier 4-point (6-entry) version of this
+experiment reported a mean error of $0.009$. That sample contained
+essentially no high-overlap pairs (largest ideal entry $0.298$) and so
+under-sampled exactly the regime in which hardware noise dominates. The
+276-entry figures above supersede it.
 
 \subsection{Confirmatory Protocol: Recurring Domain Shift and Adaptation-Pool Poisoning}
 \label{subsec:recurpoison}
@@ -1481,7 +1499,7 @@ source$\to$target transfer pair, since NF-BoT-IoT and
 NF-CSE-CIC-IDS2018 are not yet incorporated
 (Section~\ref{subsec:confirmatory}); (iii)~dependence on label feedback
 for ADWIN and episodic metrics; (iv)~non-adaptive Stage~2 typing;
-(v)~real-hardware evidence is now a minimal 6-pair characterisation
+(v)~real-hardware evidence is a 276-entry kernel characterisation
 (Section~\ref{subsec:kerneldiag}), not a full train/evaluate cycle on
 a QPU; (vi)~the LLM-gated pilot's \textsc{Calibrate-Threshold} action
 is not yet wired into the prediction path, so its measured effect is
