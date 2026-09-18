@@ -364,9 +364,12 @@ may differ from the source distribution, and the adaptation pool contains
 analyst-confirmed or otherwise trusted labels. The prototype does not
 defend against poisoning of the target adaptation pool or episodic
 memory. This limitation is security-relevant because an attacker who
-controls adaptation samples can induce persistent model changes. Robust
-adaptation under contaminated target pools is therefore included in the
-required extension protocol in Section~\ref{subsec:confirmatory}.
+controls adaptation samples can induce persistent model changes.
+Section~\ref{subsec:recurpoison} measures this exposure directly:
+\textsc{Reinforce} fires on a poisoned-pool model at every contamination
+rate tested, confirming the limitation empirically rather than only
+structurally. Robust adaptation under contaminated target pools remains
+future work.
 
 % ============================================================
 \section{Q-Armor Architecture}
@@ -777,7 +780,7 @@ silently correct only for the binary $\{0,1\}$ models, where index and
 value coincide, and wrong for any classifier with non-integer or
 non-$0..n{-}1$ class labels, i.e.\ the string-labelled coarse-type
 models. All three are now fixed and covered by the regression suite
-(114/114 tests pass); none affects a headline number in this paper, since
+(116/116 tests pass); none affects a headline number in this paper, since
 every reported result was already computed through the batch scripts
 rather than \texttt{AgentCore.process()}.
 
@@ -854,9 +857,10 @@ learned policy optimisation.
 
 \begin{table}[t]
 \centering
-\caption{Current 10-episode reflexive-control trace. ``Drift'' denotes
-ADWIN firing on the supervised error stream. F1 is reported for
-completeness but is not diagnostic here -- see discussion below.}
+\caption{10-episode reflexive-control trace. ``Drift'' denotes ADWIN
+firing on the supervised error stream. Binary F1 is omitted because it is
+constant at $0.667$ across every QSVC episode and therefore
+uninformative here -- see the discussion below.}
 \label{tab:episodes}
 \renewcommand{\arraystretch}{1.05}
 \begin{tabular}{@{}cclccl@{}}
@@ -908,8 +912,9 @@ alone; \textsc{Switch-Subset}'s remedial effect is established directly
 by deliberately triggering it in Sections~\ref{subsec:e8a}
 and~\ref{subsec:e8c}.
 
-The F1 column is included for completeness but is not informative for
-the QSVC episodes: it is constant at $0.667$ regardless of AUROC, the
+Binary F1 is omitted from Table~\ref{tab:episodes} because it is not
+informative for the QSVC episodes: it is constant at $0.667$
+regardless of AUROC, the
 exact value produced when a binary classifier predicts the positive
 (attack) class for every sample in a balanced episode
 (precision${}=0.5$, recall${}=1.0$). This holds under both
@@ -998,11 +1003,13 @@ validation or evidence of robustness to hardware noise.
 Table~\ref{tab:heldout} reports the 1,000-flow balanced held-out results
 and Figure~\ref{fig:headline} visualises the headline AUROC and FPR@95
 figures. Binary transfer degrades markedly, while target-subset
-retraining recovers $0.307$ AUROC and $0.398$ binary F1$^*$ in the
-reported run ($^*$driven largely by the change in class balance of hard
-predictions between T2 and T3 rather than a proportional F1 gain -- see
-Section~\ref{subsec:episode_results} on decision-boundary instability).
-Stage~2 typing does not recover.
+retraining recovers $0.307$ AUROC in the reported run. Binary F1 does
+\emph{not} improve: it falls slightly, from $0.440$ to $0.398$
+($-0.042$), because adaptation shifts where the hard-decision boundary
+sits relative to the episode's class balance rather than making the
+decision proportionally more accurate -- the same instability discussed
+in Section~\ref{subsec:episode_results}. Stage~2 typing does not
+recover.
 
 \begin{table*}[t]
 \centering
@@ -1027,8 +1034,8 @@ T3--T2 & $+0.307$ & $-0.042$ & $-0.018$ & $-0.776$ \\
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{figures/fig_headline_results.png}
-\caption{Sealed-condition Stage-1 AUROC and FPR@TPR95 for the held-out
-evaluation (Table~\ref{tab:heldout}).}
+\caption{Stage-1 AUROC and FPR@TPR95 for the held-out evaluation
+(Table~\ref{tab:heldout}).}
 \label{fig:headline}
 \end{figure}
 
